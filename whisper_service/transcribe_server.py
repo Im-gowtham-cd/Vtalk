@@ -57,13 +57,25 @@ def transcribe():
             return jsonify({"error": f"FFmpeg failed: {conversion.stderr}"}), 500
 
         print(f"Transcribing audio {audio_path}...")
-        segments, info = model.transcribe(audio_path, beam_size=5)
+        # Add VAD filter to ignore silence and condition_on_previous_text=False to prevent "dots" repetition loops
+        segments, info = model.transcribe(
+            audio_path, 
+            beam_size=5, 
+            vad_filter=True, 
+            condition_on_previous_text=False
+        )
         
         full_text = []
         for segment in segments:
             full_text.append(segment.text)
         
         result = " ".join(full_text).strip()
+        
+        # Guard: If result is just a series of dots or common filler hallucinations
+        if not result or result.replace(".", "").strip() == "" or len(result) < 2:
+            print("Transcription result seems to be noise/silence. Returning 'No speech detected'.")
+            result = " (No clear speech detected in this recording) "
+
         print(f"Transcription complete: {result[:50]}...")
         
         return jsonify({"text": result})
