@@ -1,0 +1,306 @@
+@import "tailwindcss";
+
+/* ── Satoshi: Bold / Purpose Font ── */
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/Satoshi/Satoshi-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/Satoshi/Satoshi-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/Satoshi/Satoshi-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/Satoshi/Satoshi-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/Satoshi/Satoshi-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Cabinet Grotesk: Slim / Body Font ── */
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Thin.ttf') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Extralight.ttf') format('truetype');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Extrabold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/Cabinet-grotesk/CabinetGrotesk-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Theme Variables ── */
+:root {
+  --olive-green: #556B2F;
+  --olive-green-dark: #3F5221;
+  --olive-green-light: #6B8E3D;
+  --crow-black: #0A0A0A;
+  --crow-black-light: #1A1A1A;
+  --glass-white: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+
+  --font-satoshi: 'Satoshi', sans-serif;
+  --font-cabinet: 'Cabinet Grotesk', sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--crow-black);
+  --color-foreground: #ededed;
+  --color-olive: #556B2F;
+  --color-olive-dark: #3F5221;
+  --color-olive-light: #6B8E3D;
+  --color-crow: #0A0A0A;
+  --color-crow-light: #1A1A1A;
+  --font-sans: var(--font-cabinet);
+  --font-display: var(--font-satoshi);
+}
+
+body {
+  background: var(--crow-black);
+  color: #ededed;
+  font-family: var(--font-cabinet);
+}
+
+/* Utility classes for fonts */
+.font-satoshi {
+  font-family: var(--font-satoshi);
+}
+.font-cabinet {
+  font-family: var(--font-cabinet);
+}
+
+/* Headings use Satoshi (bold purpose font) */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-satoshi);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+/* ── Custom Animations ── */
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+@keyframes glow-drift {
+  0%, 100% { opacity: 0.3; transform: translate(0, 0); }
+  33% { opacity: 0.5; transform: translate(30px, -20px); }
+  66% { opacity: 0.4; transform: translate(-20px, 15px); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-4px); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 6s ease-in-out infinite;
+}
+
+.animate-glow-drift {
+  animation: glow-drift 8s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+/* ── Glassmorphism utility (legacy) ── */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Frost Glassmorphism System ── */
+
+/* Base frost — subtle translucent pill/badge */
+.frost-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.frost-glass-hover:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Active state frost */
+.frost-glass-active {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+/* Strong frost — control bars, prominent UI */
+.frost-glass-strong {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Panel frost — popovers, dropdowns, cards */
+.frost-glass-panel {
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Card frost — forms, feature cards */
+.frost-glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 64px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Input frost */
+.frost-glass-input {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.frost-glass-input:focus {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(85, 107, 47, 0.5);
+  box-shadow: 0 0 0 2px rgba(85, 107, 47, 0.15);
+}
+
+/* ── Emoji Reaction Float Animation ── */
+@keyframes emoji-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1) translateX(0);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(-60px) scale(1.15) translateX(8px);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-180px) scale(1.1) translateX(-6px);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translateY(-320px) scale(1.0) translateX(10px);
+  }
+  70% {
+    opacity: 0.5;
+    transform: translateY(-480px) scale(0.9) translateX(-4px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-650px) scale(0.7) translateX(6px);
+  }
+}
+
+.animate-emoji-float {
+  animation: emoji-float 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  pointer-events: none;
+}
