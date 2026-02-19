@@ -10,8 +10,9 @@ import PreJoinLobby from '@/components/PreJoinLobby';
 import VideoCall from '@/components/VideoCall';
 import HistoryDashboard from '@/components/History/HistoryDashboard';
 import SessionDetail from '@/components/History/SessionDetail';
+import TasksDashboard from '@/components/Tasks/TasksDashboard';
 
-type View = 'landing' | 'create' | 'join' | 'lobby' | 'call' | 'history' | 'session-detail';
+type View = 'landing' | 'create' | 'join' | 'lobby' | 'call' | 'history' | 'tasks' | 'session-detail';
 
 interface MediaPrefs {
   initialAudioMuted: boolean;
@@ -94,6 +95,7 @@ function AppContent() {
           onCreateRoom={() => setView('create')}
           onJoinRoom={() => setView('join')}
           onHistory={() => setView('history')}
+          onTasks={() => setView('tasks')}
           user={user}
           onLogout={logout}
         />
@@ -127,6 +129,16 @@ function AppContent() {
       )}
       {view === 'history' && (
         <HistoryDashboard
+          token={token}
+          onBack={() => setView('landing')}
+          onSelectSession={(id: string) => {
+            setSelectedSessionId(id);
+            setView('session-detail');
+          }}
+        />
+      )}
+      {view === 'tasks' && (
+        <TasksDashboard
           token={token}
           onBack={() => setView('landing')}
           onSelectSession={(id: string) => {

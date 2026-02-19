@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Video, Plus, LogIn, ShieldCheck, Zap, Ghost, Clock, LogOut } from 'lucide-react';
+import { Video, Plus, LogIn, ShieldCheck, Zap, Ghost, Clock, LogOut, CheckSquare } from 'lucide-react';
 
-export default function Landing({ onCreateRoom, onJoinRoom, onHistory, user, onLogout }) {
+export default function Landing({ onCreateRoom, onJoinRoom, onHistory, onTasks, user, onLogout }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -78,14 +78,21 @@ export default function Landing({ onCreateRoom, onJoinRoom, onHistory, user, onL
           </button>
         </div>
 
-        {/* History button */}
-        <div className={`mt-4 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+        {/* Navigation pills */}
+        <div className={`mt-4 flex gap-2 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
           <button
             onClick={onHistory}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl frost-glass frost-glass-hover text-white/50 text-sm font-cabinet font-medium transition-all duration-300 hover:text-white/70"
           >
             <Clock size={14} />
-            Call History
+            History
+          </button>
+          <button
+            onClick={onTasks}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl frost-glass frost-glass-hover text-[#6B8E3D]/50 text-sm font-cabinet font-medium transition-all duration-300 hover:text-[#6B8E3D]/70"
+          >
+            <CheckSquare size={14} />
+            Task Center
           </button>
         </div>
 

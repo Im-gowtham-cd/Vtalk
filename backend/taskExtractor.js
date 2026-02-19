@@ -20,21 +20,21 @@ function extractTasks(segments, callStartTime = 0) {
         },
         // "[Name] will [action]"
         {
-            regex: /\b([A-Z][a-z]+)\s+(?:will|should|needs to|has to|can)\s+(.+?)(?:\.|$)/gi,
+            regex: /\b([A-Z][a-z]+)\s+(?:will|should|needs to|has to|can|is going to)\s+(.+?)(?:\.|$)/gi,
             getAssignedTo: (match) => match[1],
             getAssignedBy: (match, speaker) => speaker,
             textGroup: 2,
         },
         // "can you [action]" / "could you [action]" / "please [action]"
         {
-            regex: /\b(?:can you|could you|would you|please)\s+(.+?)(?:\?|\.|$)/gi,
+            regex: /\b(?:can you|could you|would you|please|kindly)\s+(?:send|finish|complete|write|update|check|fix|schedule|call|email|reach out to)\s+(.+?)(?:\?|\.|$)/gi,
             getAssignedTo: () => 'Unassigned',
             getAssignedBy: (match, speaker) => speaker,
         },
         // "we need to [action]" / "let's [action]"
         {
-            regex: /\b(?:we need to|we should|let's|lets|we have to)\s+(.+?)(?:\.|$)/gi,
-            getAssignedTo: () => 'Unassigned',
+            regex: /\b(?:we need to|we should|let's|lets|we have to|it's important to)\s+(.+?)(?:\.|$)/gi,
+            getAssignedTo: () => 'Team',
             getAssignedBy: (match, speaker) => speaker,
         },
     ];

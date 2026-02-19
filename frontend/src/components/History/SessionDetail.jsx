@@ -137,13 +137,37 @@ export default function SessionDetail({ sessionId, onBack, token }) {
                         <h1 className="text-xl font-satoshi font-black text-white/90">Room {session.roomId}</h1>
                         <p className="text-white/30 text-xs font-cabinet mt-0.5">{formatDate(session.date)}</p>
                     </div>
-                    <button
-                        onClick={() => exportSessionPDF(session)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#556B2F] text-white text-sm font-satoshi font-bold transition-all duration-300 hover:bg-[#6B8E3D] hover:shadow-[0_8px_32px_rgba(85,107,47,0.3)] active:scale-[0.98]"
-                    >
-                        <FileDown size={14} />
-                        Export PDF
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => exportSessionPDF(session)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#556B2F] text-white text-sm font-satoshi font-bold transition-all duration-300 hover:bg-[#6B8E3D] hover:shadow-[0_8px_32px_rgba(85,107,47,0.3)] active:scale-[0.98]"
+                        >
+                            <FileDown size={14} />
+                            PDF
+                        </button>
+                        <button
+                            onClick={() => {
+                                const md = `# Vtalk Meeting: Room ${session.roomId}\n\n` +
+                                    `**Date:** ${formatDate(session.date)}\n` +
+                                    `**Duration:** ${formatDuration(session.duration)}\n\n` +
+                                    `## Tasks\n` +
+                                    (session.tasks || []).map(t => `- [${t.status === 'completed' ? 'x' : ' '}] ${t.text} (${t.assignedTo || 'Unassigned'})`).join('\n') +
+                                    `\n\n## Transcript\n` +
+                                    (session.transcript || []).map(seg => `**${seg.speaker}:** ${seg.text}`).join('\n\n');
+
+                                const blob = new Blob([md], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `Vtalk_${session.roomId}.md`;
+                                a.click();
+                            }}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl frost-glass text-white/70 text-sm font-satoshi font-bold transition-all duration-300 hover:bg-white/[0.08] active:scale-[0.98]"
+                        >
+                            <Download size={14} />
+                            MD
+                        </button>
+                    </div>
                 </div>
 
                 {/* Info pills */}

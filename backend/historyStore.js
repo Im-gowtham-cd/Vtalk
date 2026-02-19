@@ -62,6 +62,38 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /history/all-tasks — flat list of all tasks for the user
+router.get('/all-tasks', authMiddleware, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('sessions')
+            .select('session_id, room_id, date, tasks')
+            .eq('user_id', req.user.id)
+            .order('date', { ascending: false });
+
+        if (error) throw error;
+
+        const allTasks = [];
+        (data || []).forEach((session) => {
+            if (Array.isArray(session.tasks)) {
+                session.tasks.forEach((t) => {
+                    allTasks.push({
+                        ...t,
+                        sessionId: session.session_id,
+                        roomId: session.room_id,
+                        sessionDate: session.date,
+                    });
+                });
+            }
+        });
+
+        res.json({ tasks: allTasks });
+    } catch (err) {
+        console.error('[historyStore] GET /all-tasks error:', err);
+        res.status(500).json({ error: 'Failed to fetch tasks' });
+    }
+});
+
 // GET /history/:sessionId — full session detail
 router.get('/:sessionId', authMiddleware, async (req, res) => {
     try {
