@@ -29,8 +29,10 @@ export default function Landing({ onCreateRoom, onJoinRoom }) {
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter mb-2 sm:mb-3 font-satoshi leading-none">
+
             <span className="text-[#556B2F]">V</span><span className="text-[#6B8E3D]"></span>
             <span className="text-white/90">-Talk</span>
+
           </h1>
           <p className="text-white/40 text-sm sm:text-lg font-cabinet font-light tracking-wide px-2">
             Peer-to-peer video, no strings attached
