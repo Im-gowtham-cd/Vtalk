@@ -277,6 +277,17 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     'from-rose-400 to-rose-600',
   ];
 
+  const handleExportNotion = () => {
+    if (!aiSummary || isProcessingAI) return;
+    socket.emit('export-to-notion', { roomId, summary: aiSummary }, (res) => {
+      if (res.success) {
+        window.open(res.url, '_blank');
+      } else {
+        alert(`Export failed: ${res.error}`);
+      }
+    });
+  };
+
   return (
     <div className={`flex flex-col h-screen bg-[#0A0A0A] transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
 
@@ -384,6 +395,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               useLocalWhisper={useLocalWhisper}
               onToggleLocal={() => setUseLocalWhisper(!useLocalWhisper)}
               onRunAI={() => handleAISummary()}
+              onExportNotion={handleExportNotion}
               onClose={() => setShowTranscript(false)}
             />
           </div>
