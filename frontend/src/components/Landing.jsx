@@ -38,7 +38,7 @@ export default function Landing({ onCreateRoom, onJoinRoom }) {
             Peer-to-peer video, no strings attached
           </p>
         </div>
-
+///
         {/* Action Buttons */}
         <div className={`flex flex-col sm:flex-row gap-3 w-full max-w-sm sm:max-w-lg px-2 sm:px-0 transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
           <button
