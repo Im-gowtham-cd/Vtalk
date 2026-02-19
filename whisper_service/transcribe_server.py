@@ -7,12 +7,20 @@ from faster_whisper import WhisperModel
 app = Flask(__name__)
 CORS(app)
 
-# Load model (tiny, base, small, medium, large)
-# "base" is a good balance for speed and accuracy
-model_size = "base"
+# Load model (tiny, base, small, medium, large-v3)
+# "medium" provides near-perfect accuracy on modern machines
+model_size = "medium"
 print(f"Loading Whisper model '{model_size}'...")
-model = WhisperModel(model_size, device="cpu", compute_type="int8")
-print("Model loaded successfully.")
+import traceback
+try:
+    # Use "cpu" for maximum compatibility. Python 3.14 might have auto-detect issues.
+    model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    print("Model loaded successfully.")
+except Exception as e:
+    print("FATAL ERROR during model initialization:")
+    traceback.print_exc()
+    # Fallback to small if medium fails? No, let's see why it fails first.
+    raise e
 
 # Check ffmpeg availability on startup
 import subprocess
@@ -58,11 +66,17 @@ def transcribe():
 
         print(f"Transcribing audio {audio_path}...")
         # Add VAD filter to ignore silence and condition_on_previous_text=False to prevent "dots" repetition loops
+        # initial_prompt helps with accuracy by providing context
         segments, info = model.transcribe(
             audio_path, 
             beam_size=5, 
             vad_filter=True, 
-            condition_on_previous_text=False
+            condition_on_previous_text=False,
+            # Accuracy optimizations
+            language="en",
+            no_speech_threshold=0.6,
+            log_prob_threshold=-1.0,
+            initial_prompt="Vtalk meeting recording. Video call transcription."
         )
         
         full_text = []

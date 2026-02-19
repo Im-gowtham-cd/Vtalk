@@ -79,7 +79,10 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const [unreadCount, setUnreadCount] = useState(0);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [useLocalWhisper, setUseLocalWhisper] = useState(false);
+
+  // ✅ FIX 1: Default to Local Whisper (true) so puter.js is never needed
+  //    unless the user explicitly toggles it off.
+  const [useLocalWhisper, setUseLocalWhisper] = useState(true);
   const [aiSummary, setAiSummary] = useState('');
 
   const chatRef = useRef(null);
@@ -142,50 +145,75 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const handleConfirmStopRecording = () => {
     stopRecording();
     setShowStopRecordConfirm(false);
-    // Transcription and AI Summary will be triggered by handleTranscription callback from useRecorder
   };
 
+  // ✅ FIX 2: Hardened transcription — always tries local first,
+  //    only falls back to puter if explicitly enabled AND puter loaded.
   const handleTranscription = async (blob) => {
     setIsTranscribing(true);
-    setShowTranscript(true); // Show the panel to see the progress
+    setShowTranscript(true);
+
     try {
-      console.log(`[AI] Starting transcription (${useLocalWhisper ? 'Local Whisper' : 'Puter Cloud'})...`);
       let text = '';
 
       if (useLocalWhisper) {
+        // --- Local Whisper path ---
+        console.log('[AI] Sending blob to local Whisper server...', blob.size, 'bytes');
         const formData = new FormData();
         formData.append('file', blob, 'video.webm');
+
         const response = await fetch('http://127.0.0.1:5001/transcribe', {
           method: 'POST',
           body: formData,
         });
+
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Server error (${response.status}): ${errorText}`);
+          throw new Error(`Local server error (${response.status}): ${errorText}`);
         }
+
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         text = data.text;
+
       } else {
-        if (!window.puter) throw new Error("Puter.js not loaded. Please use Local Whisper or check connection.");
+        // --- Puter cloud path ---
+        // ✅ FIX 3: Guard against puter.js not loading instead of crashing
+        if (typeof window === 'undefined' || !window.puter || typeof window.puter.ai?.speech2txt !== 'function') {
+          throw new Error(
+            'Puter.js is not available (failed to load or no internet). ' +
+            'Switch to "Local" mode in the Transcript panel.'
+          );
+        }
+        console.log('[AI] Sending blob to Puter cloud...');
         text = await window.puter.ai.speech2txt(blob);
       }
 
-      if (text) {
-        // Create a single final segment for now, or just replace all segments
+      if (text && text.trim()) {
         const finalSegment = {
           speaker: 'Full Recording',
           timestamp: Date.now(),
           text: text.toString().trim(),
         };
-        // In this mode, we replace the flaky real-time segments with the high-quality Whisper one
         socket.emit('transcript-segment', { roomId, segment: finalSegment });
-
-        // Now trigger the AI summary using this new text
         handleAISummary(text.toString());
+      } else {
+        console.warn('[AI] Transcription returned empty text.');
       }
+
     } catch (err) {
-      console.error('[AI] Transcription error:', err);
+      console.error('[AI] Transcription error:', err.message);
+      // Surface the error as a transcript segment so the user can see it
+      if (socket) {
+        socket.emit('transcript-segment', {
+          roomId,
+          segment: {
+            speaker: 'System',
+            timestamp: Date.now(),
+            text: `⚠️ Transcription failed: ${err.message}`,
+          },
+        });
+      }
     } finally {
       setIsTranscribing(false);
     }
@@ -193,7 +221,16 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
 
   const handleAISummary = async (overrideText = null) => {
     const textToProcess = overrideText || segments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
-    if (!window.puter || !textToProcess) return;
+    if (!textToProcess) return;
+
+    // ✅ FIX 4: Don't crash if puter isn't loaded — just skip AI summary gracefully
+    if (typeof window === 'undefined' || !window.puter || typeof window.puter.ai?.chat !== 'function') {
+      console.warn('[AI] Puter.js not available — skipping AI summary.');
+      setAiSummary('⚠️ AI summary unavailable (Puter.js not loaded). Your transcript is above.');
+      setShowTranscript(true);
+      return;
+    }
+
     setIsProcessingAI(true);
     try {
       const response = await window.puter.ai.chat(
@@ -201,9 +238,10 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         { model: 'claude-3-5-sonnet' }
       );
       setAiSummary(response.toString());
-      setShowTranscript(true); // Show the panel to see the summary
+      setShowTranscript(true);
     } catch (err) {
-      console.error('[AI] Puter error:', err);
+      console.error('[AI] Puter summary error:', err);
+      setAiSummary('⚠️ AI summary failed. Check console for details.');
     } finally {
       setIsProcessingAI(false);
     }

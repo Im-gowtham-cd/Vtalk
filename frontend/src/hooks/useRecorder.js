@@ -9,11 +9,17 @@ import { useEffect, useRef, useCallback, useState } from 'react';
  *
  * @param {MediaStream|null} localStream — the local WebRTC stream
  * @param {string}           roomId      — used in the download filename
+ * @param {Function}         onStop      — called with the recorded Blob when recording stops
  */
 export function useRecorder(localStream, roomId, onStop) {
     const recorderRef = useRef(null);
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
+    // Keep a ref to onStop so startRecording always calls the latest version
+    // without needing to be re-created every time onStop changes identity.
+    const onStopRef = useRef(onStop);
+    useEffect(() => { onStopRef.current = onStop; }, [onStop]);
+
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
 
@@ -57,8 +63,10 @@ export function useRecorder(localStream, roomId, onStop) {
                 const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
                 const filename = `vtalk-recording-${roomId || 'call'}-${dateStr}.webm`;
 
-                if (onStop) {
-                    onStop(blob);
+                // ✅ Use the ref so we always call the latest onStop callback,
+                //    avoiding a stale closure that would silently drop the blob.
+                if (onStopRef.current) {
+                    onStopRef.current(blob);
                 }
 
                 const url = URL.createObjectURL(blob);
@@ -88,7 +96,7 @@ export function useRecorder(localStream, roomId, onStop) {
         } catch (err) {
             console.error('[useRecorder] Could not start MediaRecorder:', err);
         }
-    }, [localStream, roomId, isSupported]);
+    }, [localStream, roomId, isSupported]); // onStop intentionally omitted — handled via ref above
 
     const stopRecording = useCallback(() => {
         if (timerRef.current) {
