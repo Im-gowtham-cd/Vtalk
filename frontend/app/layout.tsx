@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SpiceZ-Cam",
+  title: "V-talk",
   description: "Secure peer-to-peer video calls",
 };
 
