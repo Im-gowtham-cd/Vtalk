@@ -28,21 +28,27 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   process.env.FRONTEND_URL,
+  /\.vercel\.app$/,
+  /\.onrender\.com$/,
 ].filter(Boolean);
 
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
-  transports: ['websocket'],
+  transports: ['websocket', 'polling'],
   pingInterval: 10000,
   pingTimeout: 5000,
   perMessageDeflate: false,
   maxHttpBufferSize: 1e6,
 });
 
-app.use(cors({ origin: allowedOrigins }));
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
 app.use(express.json());
 
 // ── REST routes ──────────────────────────────────────────────────────────────

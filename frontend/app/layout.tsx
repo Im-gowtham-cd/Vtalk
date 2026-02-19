@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <script src="https://js.puter.com/v2/"></script>
+        {/* Puter.js for free AI Transcription & Summaries */}
+        <Script
+          src="https://js.puter.com/v2/"
+          strategy="afterInteractive"
+        />
       </head>
       <body className="font-cabinet antialiased">
         {children}

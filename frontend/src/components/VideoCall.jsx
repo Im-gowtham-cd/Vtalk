@@ -161,8 +161,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     setShowStopRecordConfirm(false);
   };
 
-  // ✅ FIX 2: Hardened transcription — always tries local first,
-  //    only falls back to puter if explicitly enabled AND puter loaded.
+  // ✅ FIX 2: Hardened transcription — auto-tries local if dev, otherwise Cloud.
   const handleTranscription = async (blob) => {
     setIsTranscribing(true);
     setShowTranscript(true);
@@ -172,7 +171,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
 
       if (useLocalWhisper) {
         // --- Local Whisper path ---
-        console.log(`[AI] Sending blob to Whisper server: ${WHISPER_URL}`, blob.size, 'bytes');
+        console.log(`[AI] Dev Mode: Sending to Local Whisper at ${WHISPER_URL}`);
         const formData = new FormData();
         formData.append('file', blob, 'video.webm');
 
@@ -183,7 +182,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Local server error (${response.status}): ${errorText}`);
+          throw new Error(`Local Whisper error: ${errorText}`);
         }
 
         const data = await response.json();
@@ -191,28 +190,41 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         text = data.text;
 
       } else {
-        // --- Puter cloud path ---
-        // ✅ FIX 3: Guard against puter.js not loading instead of crashing
-        if (typeof window === 'undefined' || !window.puter || typeof window.puter.ai?.speech2txt !== 'function') {
-          throw new Error(
-            'Puter.js is not available (failed to load or no internet). ' +
-            'Switch to "Local" mode in the Transcript panel.'
-          );
+        // --- Puter cloud path (Production Default) ---
+        console.log('[AI] Prod Mode: Sending to Puter Cloud...');
+
+        // Check if Puter JS is loaded
+        if (typeof window === 'undefined' || !window.puter) {
+          throw new Error('Puter.js script not loaded. Check your ad-blocker or internet connection.');
         }
-        console.log('[AI] Sending blob to Puter cloud...');
-        text = await window.puter.ai.speech2txt(blob);
+
+        const puterAI = window.puter?.ai;
+        // Case-insensitive check for common Puter AI methods
+        const transcribeFunction = puterAI?.transcribe || puterAI?.speech2txt;
+
+        if (typeof transcribeFunction !== 'function') {
+          throw new Error('Puter AI Transcription service is currently unavailable.');
+        }
+
+        // Call the transcription function (Blob/File supported)
+        text = await transcribeFunction(blob);
+        console.log('[AI] Puter response received successfully.');
       }
 
       if (text && text.trim()) {
+        const finalText = text.toString().trim();
+        console.log(`[AI] Final Transcript: "${finalText.slice(0, 50)}..."`);
+
         const finalSegment = {
           speaker: 'Full Recording',
           timestamp: Date.now(),
-          text: text.toString().trim(),
+          text: finalText,
         };
         socket.emit('transcript-segment', { roomId, segment: finalSegment });
-        handleAISummary(text.toString());
+        handleAISummary(finalText);
       } else {
         console.warn('[AI] Transcription returned empty text.');
+        // Don't show an error to user, just log it. They might have just had silence.
       }
 
     } catch (err) {
