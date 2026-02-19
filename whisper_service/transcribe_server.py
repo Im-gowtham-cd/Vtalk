@@ -14,13 +14,26 @@ print(f"Loading Whisper model '{model_size}'...")
 model = WhisperModel(model_size, device="cpu", compute_type="int8")
 print("Model loaded successfully.")
 
+# Check ffmpeg availability on startup
+import subprocess
+try:
+    subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+    print("ffmpeg found and working.")
+except Exception as e:
+    print("CRITICAL ERROR: ffmpeg not found or not working. Please install ffmpeg and add it to PATH.")
+    print(f"Error details: {e}")
+
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
+    print("--- New Transcription Request ---")
     if 'file' not in request.files:
+        print("Error: No file in request.files")
         return jsonify({"error": "No file provided"}), 400
     
     file = request.files['file']
+    print(f"Received file: {file.filename}")
     if file.filename == '':
+        print("Error: Empty filename")
         return jsonify({"error": "No file selected"}), 400
 
     # Save to a temporary file
@@ -32,9 +45,7 @@ def transcribe():
 
     try:
         # Convert video/webm to audio only using ffmpeg
-        # -i: input, -vn: no video, -acodec pcm_s16le: 16-bit PCM, -ar 16000: 16kHz sample rate (best for Whisper), -ac 1: mono
         print(f"Extracting audio from {temp_path} to {audio_path}...")
-        import subprocess
         conversion = subprocess.run([
             'ffmpeg', '-y', '-i', temp_path, 
             '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', 
@@ -43,7 +54,7 @@ def transcribe():
 
         if conversion.returncode != 0:
             print(f"FFmpeg error: {conversion.stderr}")
-            return jsonify({"error": "Failed to extract audio from video"}), 500
+            return jsonify({"error": f"FFmpeg failed: {conversion.stderr}"}), 500
 
         print(f"Transcribing audio {audio_path}...")
         segments, info = model.transcribe(audio_path, beam_size=5)
@@ -59,13 +70,17 @@ def transcribe():
 
     except Exception as e:
         print(f"Error during transcription: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Server Error: {str(e)}"}), 500
     
     finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        # cleanup
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+        except Exception:
+            pass
 
 if __name__ == '__main__':
     # Listen on port 5001 to avoid conflict with backend on 5000
