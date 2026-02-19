@@ -146,7 +146,6 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   };
 
   const handleTranscription = async (blob) => {
-    if (!window.puter) return;
     setIsTranscribing(true);
     setShowTranscript(true); // Show the panel to see the progress
     try {
@@ -156,14 +155,19 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
       if (useLocalWhisper) {
         const formData = new FormData();
         formData.append('file', blob, 'video.webm');
-        const response = await fetch('http://localhost:5001/transcribe', {
+        const response = await fetch('http://127.0.0.1:5001/transcribe', {
           method: 'POST',
           body: formData,
         });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server error (${response.status}): ${errorText}`);
+        }
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         text = data.text;
       } else {
+        if (!window.puter) throw new Error("Puter.js not loaded. Please use Local Whisper or check connection.");
         text = await window.puter.ai.speech2txt(blob);
       }
 
