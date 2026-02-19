@@ -62,7 +62,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   } = useDevices();
 
   // Recording
-  const { isRecording, startRecording, stopRecording, recordingDuration, isSupported: recorderSupported } = useRecorder(localStream, roomId);
+  const { isRecording, startRecording, stopRecording, recordingDuration, isSupported: recorderSupported } = useRecorder(localStream, roomId, (blob) => handleTranscription(blob));
   const [showStopRecordConfirm, setShowStopRecordConfirm] = useState(false);
 
   // Transcript - continuous background recording
@@ -78,6 +78,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const [chatMessages, setChatMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
 
   const chatRef = useRef(null);
@@ -140,19 +141,43 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const handleConfirmStopRecording = () => {
     stopRecording();
     setShowStopRecordConfirm(false);
-    // Auto-trigger AI summary when recording ends
-    if (segments.length > 0) {
-      handleAISummary();
+    // Transcription and AI Summary will be triggered by handleTranscription callback from useRecorder
+  };
+
+  const handleTranscription = async (blob) => {
+    if (!window.puter) return;
+    setIsTranscribing(true);
+    setShowTranscript(true); // Show the panel to see the progress
+    try {
+      console.log('[AI] Starting transcription...');
+      const text = await window.puter.ai.speech2txt(blob);
+      if (text) {
+        // Create a single final segment for now, or just replace all segments
+        const finalSegment = {
+          speaker: 'Full Recording',
+          timestamp: Date.now(),
+          text: text.toString().trim(),
+        };
+        // In this mode, we replace the flaky real-time segments with the high-quality Whisper one
+        socket.emit('transcript-segment', { roomId, segment: finalSegment });
+
+        // Now trigger the AI summary using this new text
+        handleAISummary(text.toString());
+      }
+    } catch (err) {
+      console.error('[AI] Transcription error:', err);
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
-  const handleAISummary = async () => {
-    if (!window.puter || segments.length === 0) return;
+  const handleAISummary = async (overrideText = null) => {
+    const textToProcess = overrideText || segments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
+    if (!window.puter || !textToProcess) return;
     setIsProcessingAI(true);
     try {
-      const text = segments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
       const response = await window.puter.ai.chat(
-        `Please summarize this meeting transcript and list the key action items and decisions:\n\n${text}`,
+        `Please summarize this meeting transcript and list the key action items and decisions:\n\n${textToProcess}`,
         { model: 'claude-3-5-sonnet' }
       );
       setAiSummary(response.toString());
@@ -289,7 +314,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               interimText={interimText}
               aiSummary={aiSummary}
               isProcessingAI={isProcessingAI}
-              onRunAI={handleAISummary}
+              isTranscribing={isTranscribing}
+              onRunAI={() => handleAISummary()}
               onClose={() => setShowTranscript(false)}
             />
           </div>

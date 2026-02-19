@@ -10,7 +10,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
  * @param {MediaStream|null} localStream — the local WebRTC stream
  * @param {string}           roomId      — used in the download filename
  */
-export function useRecorder(localStream, roomId) {
+export function useRecorder(localStream, roomId, onStop) {
     const recorderRef = useRef(null);
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
@@ -56,6 +56,10 @@ export function useRecorder(localStream, roomId) {
                 const pad = (n) => String(n).padStart(2, '0');
                 const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
                 const filename = `vtalk-recording-${roomId || 'call'}-${dateStr}.webm`;
+
+                if (onStop) {
+                    onStop(blob);
+                }
 
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

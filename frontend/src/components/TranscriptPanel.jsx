@@ -12,7 +12,7 @@ const speakerColors = [
     'text-purple-400',
 ];
 
-export default function TranscriptPanel({ segments, interimText, aiSummary, isProcessingAI, onRunAI, onClose }) {
+export default function TranscriptPanel({ segments, interimText, aiSummary, isProcessingAI, isTranscribing, onRunAI, onClose }) {
     const scrollRef = useRef(null);
     const speakerMap = useRef({});
     let colorIdx = 0;
@@ -49,11 +49,11 @@ export default function TranscriptPanel({ segments, interimText, aiSummary, isPr
                 <div className="flex items-center gap-2">
                     <button
                         onClick={onRunAI}
-                        disabled={isProcessingAI || segments.length === 0}
+                        disabled={isProcessingAI || isTranscribing || segments.length === 0}
                         className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#6B8E3D]/10 hover:bg-[#6B8E3D]/20 text-[#6B8E3D] text-[10px] font-satoshi font-bold transition-all disabled:opacity-30"
                         title="Generate AI Summary"
                     >
-                        {isProcessingAI ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                        {(isProcessingAI || isTranscribing) ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                         AI Summary
                     </button>
                     <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors">
@@ -96,13 +96,18 @@ export default function TranscriptPanel({ segments, interimText, aiSummary, isPr
             </div>
 
             {/* AI Summary Section */}
-            {(aiSummary || isProcessingAI) && (
+            {(aiSummary || isProcessingAI || isTranscribing) && (
                 <div className="mx-3 mt-1 mb-3 p-3 rounded-xl bg-[#6B8E3D]/5 border border-[#6B8E3D]/10 animate-fade-in shadow-inner">
                     <div className="flex items-center gap-1.5 mb-2">
                         <Sparkles size={12} className="text-[#6B8E3D]" />
                         <span className="text-[#6B8E3D] text-[10px] font-satoshi font-bold uppercase tracking-wider">AI Summary</span>
                     </div>
-                    {isProcessingAI ? (
+                    {isTranscribing ? (
+                        <div className="flex items-center gap-2 py-2">
+                            <Loader2 size={12} className="text-[#6B8E3D]/40 animate-spin" />
+                            <span className="text-white/20 text-xs font-cabinet italic">Transcribing meeting...</span>
+                        </div>
+                    ) : isProcessingAI ? (
                         <div className="flex items-center gap-2 py-2">
                             <Loader2 size={12} className="text-[#6B8E3D]/40 animate-spin" />
                             <span className="text-white/20 text-xs font-cabinet italic">Claude is thinking...</span>
