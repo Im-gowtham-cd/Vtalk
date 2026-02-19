@@ -80,10 +80,16 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
-  // ✅ FIX 1: Default to Local Whisper (true) so puter.js is never needed
-  //    unless the user explicitly toggles it off.
-  const [useLocalWhisper, setUseLocalWhisper] = useState(true);
+  // ✅ FIX 1: Default to Puter Cloud in production, Local in dev
+  const [useLocalWhisper, setUseLocalWhisper] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    }
+    return false;
+  });
   const [aiSummary, setAiSummary] = useState('');
+
+  const WHISPER_URL = process.env.NEXT_PUBLIC_WHISPER_URL || 'http://127.0.0.1:5001';
 
   const chatRef = useRef(null);
   const deviceMenuRef = useRef(null);
@@ -166,11 +172,11 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
 
       if (useLocalWhisper) {
         // --- Local Whisper path ---
-        console.log('[AI] Sending blob to local Whisper server...', blob.size, 'bytes');
+        console.log(`[AI] Sending blob to Whisper server: ${WHISPER_URL}`, blob.size, 'bytes');
         const formData = new FormData();
         formData.append('file', blob, 'video.webm');
 
-        const response = await fetch('http://127.0.0.1:5001/transcribe', {
+        const response = await fetch(`${WHISPER_URL}/transcribe`, {
           method: 'POST',
           body: formData,
         });
