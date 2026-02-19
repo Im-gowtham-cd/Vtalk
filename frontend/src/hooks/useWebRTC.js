@@ -18,6 +18,7 @@ export function useWebRTC(roomId, { initialAudioMuted = false, initialVideoOff =
   const screenStreamRef = useRef(null);
   const screenSendersRef = useRef({}); // { [peerId]: [sender, sender] } — screen track senders per peer
   const initedRef = useRef(false);
+  const iceQueueRef = useRef({}); // { [peerId]: [candidate, candidate] }
 
   // Initialize local media with optional device IDs
   const initMedia = useCallback(async (audioDeviceId, videoDeviceId) => {
@@ -166,28 +167,65 @@ export function useWebRTC(roomId, { initialAudioMuted = false, initialVideoOff =
 
     // Receive an answer
     socket.on('answer', async ({ from, answer }) => {
-      const pc = peersRef.current[from];
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      try {
+        const pc = peersRef.current[from];
+        if (pc) {
+          // Guard: Only set remote answer if we are expecting one (state must be have-local-offer)
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log(`[WebRTC] Set remote description for ${from}`);
+
+            // Process any queued candidates for this peer
+            const queue = iceQueueRef.current[from] || [];
+            if (queue.length > 0) {
+              console.log(`[WebRTC] Processing ${queue.length} queued candidates for ${from}`);
+              await Promise.all(queue.map(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(e => { })));
+              delete iceQueueRef.current[from];
+            }
+          } else {
+            console.warn(`[WebRTC] Received answer for ${from} in state ${pc.signalingState}. Skipping.`);
+          }
+        }
+      } catch (err) {
+        console.error(`[WebRTC] Error setting answer for ${from}:`, err);
       }
     });
 
     // Receive single ICE candidate (backwards compat)
     socket.on('ice-candidate', async ({ from, candidate }) => {
-      const pc = peersRef.current[from];
-      if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      try {
+        const pc = peersRef.current[from];
+        if (pc) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            // Queue candidate if remote description is not yet set
+            if (!iceQueueRef.current[from]) iceQueueRef.current[from] = [];
+            iceQueueRef.current[from].push(candidate);
+          }
+        }
+      } catch (err) {
+        console.warn(`[WebRTC] Error adding candidate for ${from}:`, err);
       }
     });
 
     // Receive batched ICE candidates (low-latency path)
     socket.on('ice-candidates', async ({ from, candidates }) => {
-      const pc = peersRef.current[from];
-      if (pc && Array.isArray(candidates)) {
-        // Add all candidates in parallel for fastest setup
-        await Promise.all(
-          candidates.map((c) => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}))
-        );
+      try {
+        const pc = peersRef.current[from];
+        if (pc && Array.isArray(candidates)) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await Promise.all(
+              candidates.map((c) => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => { }))
+            );
+          } else {
+            // Queue all candidates
+            if (!iceQueueRef.current[from]) iceQueueRef.current[from] = [];
+            iceQueueRef.current[from].push(...candidates);
+          }
+        }
+      } catch (err) {
+        console.warn(`[WebRTC] Error adding batched candidates for ${from}:`, err);
       }
     });
 
@@ -197,6 +235,7 @@ export function useWebRTC(roomId, { initialAudioMuted = false, initialVideoOff =
         peersRef.current[userId].close();
         delete peersRef.current[userId];
       }
+      delete iceQueueRef.current[userId]; // Cleanup queue
       setRemoteStreams((prev) => {
         const updated = { ...prev };
         delete updated[userId];
@@ -296,11 +335,11 @@ export function useWebRTC(roomId, { initialAudioMuted = false, initialVideoOff =
         const senders = [];
         try {
           senders.push(pc.addTrack(screenVideoTrack, stream));
-        } catch {}
+        } catch { }
         if (screenAudioTrack) {
           try {
             senders.push(pc.addTrack(screenAudioTrack, stream));
-          } catch {}
+          } catch { }
         }
         screenSendersRef.current[peerId] = senders;
       });
@@ -329,7 +368,7 @@ export function useWebRTC(roomId, { initialAudioMuted = false, initialVideoOff =
       const pc = peersRef.current[peerId];
       if (pc) {
         senders.forEach((sender) => {
-          try { pc.removeTrack(sender); } catch {}
+          try { pc.removeTrack(sender); } catch { }
         });
       }
     });
