@@ -74,6 +74,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const [showDeviceMenu, setShowDeviceMenu] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   // Chat state lifted for persistence
+  const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
