@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Video, Plus, LogIn, ShieldCheck, Zap, Ghost } from 'lucide-react';
+import { Video, Plus, LogIn, ShieldCheck, Zap, Ghost, Clock, LogOut } from 'lucide-react';
 
-export default function Landing({ onCreateRoom, onJoinRoom }) {
+export default function Landing({ onCreateRoom, onJoinRoom, onHistory, user, onLogout }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -17,6 +17,25 @@ export default function Landing({ onCreateRoom, onJoinRoom }) {
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] sm:w-[600px] sm:h-[600px] rounded-full bg-[#556B2F]/8 blur-[80px] sm:blur-[120px] animate-glow-pulse" />
         <div className="absolute bottom-1/4 right-1/4 w-[200px] h-[200px] sm:w-[400px] sm:h-[400px] rounded-full bg-[#556B2F]/5 blur-[60px] sm:blur-[100px] animate-glow-drift" />
       </div>
+
+      {/* User pill (top right) */}
+      {user && (
+        <div className={`absolute top-5 right-5 z-20 flex items-center gap-2 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-2xl frost-glass">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#556B2F] to-[#6B8E3D] flex items-center justify-center">
+              <span className="text-white text-[10px] font-satoshi font-bold">{user.name[0].toUpperCase()}</span>
+            </div>
+            <span className="text-white/70 text-sm font-cabinet font-medium">{user.name}</span>
+            <button
+              onClick={onLogout}
+              className="ml-1 text-white/25 hover:text-red-400 transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className={`relative z-10 flex flex-col items-center transition-all duration-1000 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -59,13 +78,24 @@ export default function Landing({ onCreateRoom, onJoinRoom }) {
           </button>
         </div>
 
+        {/* History button */}
+        <div className={`mt-4 transition-all duration-700 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+          <button
+            onClick={onHistory}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl frost-glass frost-glass-hover text-white/50 text-sm font-cabinet font-medium transition-all duration-300 hover:text-white/70"
+          >
+            <Clock size={14} />
+            Call History
+          </button>
+        </div>
+
         {/* Glass Feature Card */}
-        <div className={`mt-8 sm:mt-14 p-4 sm:p-5 rounded-xl sm:rounded-2xl frost-glass-card max-w-sm w-full transition-all duration-700 delay-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+        <div className={`mt-6 sm:mt-10 p-4 sm:p-5 rounded-xl sm:rounded-2xl frost-glass-card max-w-sm w-full transition-all duration-700 delay-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
           <div className="space-y-3">
             {[
               { icon: <ShieldCheck size={14} className="text-[#6B8E3D]" />, text: 'End-to-end encrypted calls' },
-              { icon: <Zap size={14} className="text-[#6B8E3D]" />, text: 'No sign-up required' },
-              { icon: <Ghost size={14} className="text-[#6B8E3D]" />, text: 'Rooms vanish when you leave' },
+              { icon: <Zap size={14} className="text-[#6B8E3D]" />, text: 'AI-powered transcript & task extraction' },
+              { icon: <Ghost size={14} className="text-[#6B8E3D]" />, text: 'Record, review & export as PDF' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 group">
                 <div className="w-8 h-8 rounded-lg bg-[#556B2F]/10 flex items-center justify-center shrink-0 group-hover:bg-[#556B2F]/20 transition-colors duration-300">
@@ -81,7 +111,7 @@ export default function Landing({ onCreateRoom, onJoinRoom }) {
 
         {/* Footer */}
         <p className={`mt-6 sm:mt-10 text-white/20 text-[10px] sm:text-xs font-cabinet tracking-widest uppercase transition-all duration-700 delay-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-          WebRTC &middot; Socket.io &middot; No data stored
+          WebRTC &middot; Socket.io &middot; AI Transcript
         </p>
       </div>
     </div>

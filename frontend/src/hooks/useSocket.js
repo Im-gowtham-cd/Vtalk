@@ -8,6 +8,8 @@ let globalSocket = null;
 
 function getSocket() {
   if (!globalSocket) {
+    // Pass auth token if available so the server auto-identifies the user
+    const token = typeof window !== 'undefined' ? localStorage.getItem('vtalk_token') : null;
     globalSocket = io(SOCKET_URL, {
       // Low-latency transport: skip long-polling, go straight to WebSocket
       transports: ['websocket'],
@@ -19,6 +21,8 @@ function getSocket() {
       upgrade: false,
       // Larger buffer for batched messages
       perMessageDeflate: false,
+      // Auth handshake
+      auth: token ? { token } : {},
     });
   }
   return globalSocket;

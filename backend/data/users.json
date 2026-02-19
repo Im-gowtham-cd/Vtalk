@@ -1,0 +1,16 @@
+[
+  {
+    "id": "a6dda5d3-f025-42cc-8d93-1ec06c3b8cb4",
+    "name": "Test",
+    "email": "test@test.com",
+    "passwordHash": "$2b$10$Qg2hPA1V1QIbu.DWZgRwt.XwNGyTOAtqtwJfP9XWbW2BD9854czIS",
+    "createdAt": "2026-02-19T13:20:06.654Z"
+  },
+  {
+    "id": "a94802a9-77bd-445b-83b6-d15fee1b2051",
+    "name": "Gowtham C D",
+    "email": "gowthamcdstudies@gmail.com",
+    "passwordHash": "$2b$10$hHIvunnVmLJcTWpiyiNIIO6hULN8/vNKNti0RN/6LJ0dk0WZ.dl8m",
+    "createdAt": "2026-02-19T13:23:09.432Z"
+  }
+]
