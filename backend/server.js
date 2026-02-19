@@ -222,6 +222,27 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('transcript-update', { segments: transcripts });
   });
 
+  // ── Export to Notion ───────────────────────────────────────────────────────
+  socket.on('export-to-notion', async ({ roomId, summary }, callback) => {
+    try {
+      const { createNotionDoc } = require('./notion');
+      const transcript = roomTranscripts.get(roomId) || [];
+      const startTime = roomStartTimes.get(roomId) || Date.now();
+      const tasks = extractTasks(transcript, startTime);
+
+      const url = await createNotionDoc(
+        roomId,
+        summary || 'Automated meeting notes from Vtalk',
+        tasks
+      );
+
+      callback({ success: true, url });
+    } catch (err) {
+      console.error('[Notion] Export failed:', err.message);
+      callback({ success: false, error: err.message });
+    }
+  });
+
   // ── Leave room (explicit) ──────────────────────────────────────────────────
   socket.on('leave-room', ({ roomId }) => {
     handleLeave(socket, roomId);
