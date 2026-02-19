@@ -102,10 +102,10 @@ export default function HistoryDashboard({ onBack, onSelectSession, token }) {
                 {/* Session cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {sessions.map((session) => (
-                        <button
+                        <div
                             key={session.sessionId}
                             onClick={() => onSelectSession(session.sessionId)}
-                            className="group text-left p-5 rounded-2xl frost-glass-card transition-all duration-300 hover:border-[#556B2F]/30 hover:shadow-[0_8px_32px_rgba(85,107,47,0.1)]"
+                            className="group text-left p-5 rounded-2xl frost-glass-card transition-all duration-300 hover:border-[#556B2F]/30 hover:shadow-[0_8px_32px_rgba(85,107,47,0.1)] cursor-pointer"
                         >
                             <div className="flex items-start justify-between mb-3">
                                 <div>
@@ -135,7 +135,7 @@ export default function HistoryDashboard({ onBack, onSelectSession, token }) {
                                     </span>
                                 )}
                             </div>
-                        </button>
+                        </div>
                     ))}
                 </div>
             </div>
