@@ -12,7 +12,7 @@ const speakerColors = [
     'text-purple-400',
 ];
 
-export default function TranscriptPanel({ segments, interimText, aiSummary, isProcessingAI, isTranscribing, onRunAI, onClose }) {
+export default function TranscriptPanel({ segments, interimText, aiSummary, isProcessingAI, isTranscribing, useLocalWhisper, onToggleLocal, onRunAI, onClose }) {
     const scrollRef = useRef(null);
     const speakerMap = useRef({});
     let colorIdx = 0;
@@ -47,6 +47,16 @@ export default function TranscriptPanel({ segments, interimText, aiSummary, isPr
                     <span className="text-white/90 text-sm font-satoshi font-bold">Transcript</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={onToggleLocal}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-satoshi font-bold transition-all ${useLocalWhisper
+                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                            }`}
+                        title={useLocalWhisper ? "Using Local Whisper" : "Using Puter Cloud AI"}
+                    >
+                        {useLocalWhisper ? 'Local' : 'Puter'}
+                    </button>
                     <button
                         onClick={onRunAI}
                         disabled={isProcessingAI || isTranscribing || segments.length === 0}

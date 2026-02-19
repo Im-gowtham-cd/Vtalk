@@ -79,6 +79,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const [unreadCount, setUnreadCount] = useState(0);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [useLocalWhisper, setUseLocalWhisper] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
 
   const chatRef = useRef(null);
@@ -149,8 +150,23 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     setIsTranscribing(true);
     setShowTranscript(true); // Show the panel to see the progress
     try {
-      console.log('[AI] Starting transcription...');
-      const text = await window.puter.ai.speech2txt(blob);
+      console.log(`[AI] Starting transcription (${useLocalWhisper ? 'Local Whisper' : 'Puter Cloud'})...`);
+      let text = '';
+
+      if (useLocalWhisper) {
+        const formData = new FormData();
+        formData.append('file', blob, 'video.webm');
+        const response = await fetch('http://localhost:5001/transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        text = data.text;
+      } else {
+        text = await window.puter.ai.speech2txt(blob);
+      }
+
       if (text) {
         // Create a single final segment for now, or just replace all segments
         const finalSegment = {
@@ -315,6 +331,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               aiSummary={aiSummary}
               isProcessingAI={isProcessingAI}
               isTranscribing={isTranscribing}
+              useLocalWhisper={useLocalWhisper}
+              onToggleLocal={() => setUseLocalWhisper(!useLocalWhisper)}
               onRunAI={() => handleAISummary()}
               onClose={() => setShowTranscript(false)}
             />
