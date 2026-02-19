@@ -116,7 +116,15 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     return () => { socket.off('chat-message', handleChatMsg); };
   }, [socket, showChat]);
 
-  const handleLeave = () => { cleanup(); onLeave(); };
+  const handleLeave = () => {
+    if (isTranscribing) {
+      if (!window.confirm('Transcription is still in progress. If you leave now, the final part of your recording might not be saved. Leave anyway?')) {
+        return;
+      }
+    }
+    cleanup();
+    onLeave();
+  };
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(roomId);

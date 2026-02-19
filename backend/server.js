@@ -240,14 +240,18 @@ io.on('connection', (socket) => {
 
   // ── Helper: handle room leave + session save ───────────────────────────────
   function handleLeave(sock, roomId) {
+    console.log(`[Backend] User ${sock.id} leaving room ${roomId}`);
     const room = rooms.get(roomId);
     if (!room) {
       socketRooms.delete(sock.id);
       return;
     }
 
+    // Save session for this specific user before they are fully removed
+    saveUserSession(sock.id, roomId);
+
     if (room.creator === sock.id) {
-      // Creator left → close room, save session for all authenticated participants
+      // Creator left → close room for everyone else
       io.to(roomId).emit('room-closed', { reason: 'Creator left the room' });
       finalizeRoom(roomId);
       rooms.delete(roomId);
@@ -255,7 +259,7 @@ io.on('connection', (socket) => {
       room.participants.delete(sock.id);
       sock.to(roomId).emit('user-left', { userId: sock.id });
 
-      // If room is now empty, finalize
+      // If room is now empty, finalize (cleanup state)
       if (room.participants.size === 0) {
         finalizeRoom(roomId);
         rooms.delete(roomId);
@@ -265,11 +269,41 @@ io.on('connection', (socket) => {
     socketRooms.delete(sock.id);
   }
 
-  function finalizeRoom(roomId) {
+  function saveUserSession(socketId, roomId) {
+    const authUser = socketUsers.get(socketId);
+    if (!authUser) {
+      console.log(`[Backend] User ${socketId} is not authenticated. Skipping DB save.`);
+      return;
+    }
+
     const startTime = roomStartTimes.get(roomId) || Date.now();
     const duration = Math.floor((Date.now() - startTime) / 1000);
     const transcriptSegments = roomTranscripts.get(roomId) || [];
     const participantsList = roomParticipants.get(roomId) || [];
+    const tasks = extractTasks(transcriptSegments, startTime);
+
+    const sessionData = {
+      sessionId: uuidv4(),
+      roomId,
+      date: new Date().toISOString(),
+      duration,
+      participants: participantsList,
+      transcript: transcriptSegments,
+      tasks,
+    };
+
+    console.log(`[Backend] Individual save for ${authUser.email} in room ${roomId}`);
+    saveSession(authUser.id, sessionData);
+  }
+
+  function finalizeRoom(roomId) {
+    console.log(`[Backend] Finalizing room: ${roomId}`);
+    const startTime = roomStartTimes.get(roomId) || Date.now();
+    const duration = Math.floor((Date.now() - startTime) / 1000);
+    const transcriptSegments = roomTranscripts.get(roomId) || [];
+    const participantsList = roomParticipants.get(roomId) || [];
+
+    console.log(`[Backend] Room stats: ${transcriptSegments.length} segments, ${participantsList.length} participants`);
 
     // Extract tasks from transcript
     const tasks = extractTasks(transcriptSegments, startTime);
@@ -290,11 +324,14 @@ io.on('connection', (socket) => {
 
     // Save for all participants that have an authenticated user entry
     const room = rooms.get(roomId);
+    let saveCount = 0;
     if (room) {
       for (const socketId of room.participants) {
         const authUser = socketUsers.get(socketId);
         if (authUser) {
+          console.log(`[Backend] Saving session for user: ${authUser.email}`);
           saveSession(authUser.id, { ...sessionData });
+          saveCount++;
         }
       }
     }
@@ -305,10 +342,14 @@ io.on('connection', (socket) => {
       if (creatorUser) {
         // Check if we already saved for the creator (they'd be in participants)
         if (!room.participants.has(room.creator)) {
+          console.log(`[Backend] Saving session for creator: ${creatorUser.email}`);
           saveSession(creatorUser.id, { ...sessionData });
+          saveCount++;
         }
       }
     }
+
+    console.log(`[Backend] Room ${roomId} finalized. Triggered ${saveCount} saves.`);
 
     // Cleanup
     roomTranscripts.delete(roomId);

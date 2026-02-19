@@ -7,9 +7,9 @@ from faster_whisper import WhisperModel
 app = Flask(__name__)
 CORS(app)
 
-# Load model (tiny, base, small, medium, large-v3)
-# "medium" provides near-perfect accuracy on modern machines
-model_size = "medium"
+# Load model (tiny, base, small, medium, large-v3, large-v3-turbo)
+# "large-v3-turbo" is the fastest high-accuracy model
+model_size = "large-v3-turbo"
 print(f"Loading Whisper model '{model_size}'...")
 import traceback
 try:
@@ -72,10 +72,11 @@ def transcribe():
             beam_size=5, 
             vad_filter=True, 
             condition_on_previous_text=False,
-            # Accuracy optimizations
+            # Accuracy optimizations for large-v3-turbo
             language="en",
-            no_speech_threshold=0.6,
-            log_prob_threshold=-1.0,
+            no_speech_threshold=0.1,    # More sensitive to speech
+            log_prob_threshold=-1.0,     # High confidence required
+            compression_ratio_threshold=2.4, # Prevent repetitive hallucinations
             initial_prompt="Vtalk meeting recording. Video call transcription."
         )
         

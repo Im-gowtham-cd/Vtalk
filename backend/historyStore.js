@@ -7,6 +7,7 @@ const router = express.Router();
 // ── Public API (called by server.js on room close) ────────────────────────────
 
 async function saveSession(userId, sessionData) {
+    console.log(`[historyStore] Attempting to save session ${sessionData.sessionId} for user ${userId}`);
     const { error } = await supabase
         .from('sessions')
         .insert([{
@@ -24,7 +25,11 @@ async function saveSession(userId, sessionData) {
         // Ignore duplicate session_id for same user (multiple participants save the same session)
         if (error.code !== '23505') {
             console.error('[historyStore] saveSession error:', error.message);
+        } else {
+            console.log('[historyStore] Session already exists, skipping.');
         }
+    } else {
+        console.log(`[historyStore] Session ${sessionData.sessionId} saved successfully to Supabase.`);
     }
 }
 
