@@ -65,16 +65,20 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const { isRecording, startRecording, stopRecording, recordingDuration, isSupported: recorderSupported } = useRecorder(localStream, roomId);
   const [showStopRecordConfirm, setShowStopRecordConfirm] = useState(false);
 
-  // Transcript
+  // Transcript - continuous background recording
   const [showTranscript, setShowTranscript] = useState(false);
-  const { segments, interimText, isListening, isSupported: transcriptSupported } = useTranscript(roomId, userName, showTranscript);
+  const { segments, interimText, isListening, isSupported: transcriptSupported } = useTranscript(roomId, userName, true);
 
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDeviceMenu, setShowDeviceMenu] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  // Chat state lifted for persistence
+  const [chatMessages, setChatMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+
   const chatRef = useRef(null);
   const deviceMenuRef = useRef(null);
   const participantsRef = useRef(null);
@@ -93,10 +97,11 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Track unread messages when chat is closed
+  // Listen for socket messages in parent to persist state
   useEffect(() => {
     if (!socket) return;
     const handleChatMsg = (msg) => {
+      setChatMessages((prev) => [...prev, msg]);
       if (!showChat && msg.userId !== socket.id) {
         setUnreadCount((c) => c + 1);
       }
@@ -134,6 +139,28 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
   const handleConfirmStopRecording = () => {
     stopRecording();
     setShowStopRecordConfirm(false);
+    // Auto-trigger AI summary when recording ends
+    if (segments.length > 0) {
+      handleAISummary();
+    }
+  };
+
+  const handleAISummary = async () => {
+    if (!window.puter || segments.length === 0) return;
+    setIsProcessingAI(true);
+    try {
+      const text = segments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
+      const response = await window.puter.ai.chat(
+        `Please summarize this meeting transcript and list the key action items and decisions:\n\n${text}`,
+        { model: 'claude-3-5-sonnet' }
+      );
+      setAiSummary(response.toString());
+      setShowTranscript(true); // Show the panel to see the summary
+    } catch (err) {
+      console.error('[AI] Puter error:', err);
+    } finally {
+      setIsProcessingAI(false);
+    }
   };
 
   // Format recording duration
@@ -201,12 +228,12 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 p-2 sm:p-4 overflow-hidden">
           <div className={`grid gap-2 sm:gap-3 h-full auto-rows-fr ${tileCount === 1
-              ? 'grid-cols-1 max-w-lg sm:max-w-3xl mx-auto'
-              : tileCount === 2
-                ? 'grid-cols-1 md:grid-cols-2'
-                : tileCount <= 4
-                  ? 'grid-cols-2'
-                  : 'grid-cols-2 lg:grid-cols-3'
+            ? 'grid-cols-1 max-w-lg sm:max-w-3xl mx-auto'
+            : tileCount === 2
+              ? 'grid-cols-1 md:grid-cols-2'
+              : tileCount <= 4
+                ? 'grid-cols-2'
+                : 'grid-cols-2 lg:grid-cols-3'
             }`}>
             {/* Local Video */}
             <VideoPlayer
@@ -259,6 +286,9 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             <TranscriptPanel
               segments={segments}
               interimText={interimText}
+              aiSummary={aiSummary}
+              isProcessingAI={isProcessingAI}
+              onRunAI={handleAISummary}
               onClose={() => setShowTranscript(false)}
             />
           </div>
@@ -304,8 +334,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             <button
               onClick={toggleAudio}
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${isAudioMuted
-                  ? 'bg-red-500/20 hover:bg-red-500/30'
-                  : 'bg-white/[0.08] hover:bg-white/[0.14]'
+                ? 'bg-red-500/20 hover:bg-red-500/30'
+                : 'bg-white/[0.08] hover:bg-white/[0.14]'
                 }`}
               title={isAudioMuted ? 'Unmute' : 'Mute'}
             >
@@ -316,8 +346,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             <button
               onClick={toggleVideo}
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${isVideoOff
-                  ? 'bg-red-500/20 hover:bg-red-500/30'
-                  : 'bg-white/[0.08] hover:bg-white/[0.14]'
+                ? 'bg-red-500/20 hover:bg-red-500/30'
+                : 'bg-white/[0.08] hover:bg-white/[0.14]'
                 }`}
               title={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
             >
@@ -328,8 +358,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             <button
               onClick={isScreenSharing ? stopScreenShare : startScreenShare}
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${isScreenSharing
-                  ? 'bg-[#556B2F]/30 hover:bg-[#556B2F]/40 ring-1 ring-[#556B2F]/50'
-                  : 'bg-white/[0.08] hover:bg-white/[0.14]'
+                ? 'bg-[#556B2F]/30 hover:bg-[#556B2F]/40 ring-1 ring-[#556B2F]/50'
+                : 'bg-white/[0.08] hover:bg-white/[0.14]'
                 }`}
               title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
             >
@@ -344,8 +374,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               onClick={handleRecordToggle}
               disabled={!recorderSupported}
               className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${isRecording
-                  ? 'bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/50'
-                  : 'bg-white/[0.08] hover:bg-white/[0.14]'
+                ? 'bg-red-500/20 hover:bg-red-500/30 ring-1 ring-red-500/50'
+                : 'bg-white/[0.08] hover:bg-white/[0.14]'
                 } disabled:opacity-30 disabled:cursor-not-allowed`}
               title={!recorderSupported ? 'Recording not supported in this browser' : isRecording ? 'Stop recording' : 'Start recording'}
             >
@@ -446,6 +476,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
                     socket={socket}
                     roomId={roomId}
                     userName={userName}
+                    messages={chatMessages}
                     onClose={() => setShowChat(false)}
                   />
                 </div>
@@ -522,8 +553,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
                   setShowDeviceMenu(false);
                 }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showTranscript
-                    ? 'frost-glass-active'
-                    : 'frost-glass frost-glass-hover'
+                  ? 'frost-glass-active'
+                  : 'frost-glass frost-glass-hover'
                   }`}
               >
                 <FileText size={14} className="text-white/60" />
@@ -538,8 +569,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
                   setShowDeviceMenu(false);
                 }}
                 className={`relative flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showChat
-                    ? 'frost-glass-active'
-                    : 'frost-glass frost-glass-hover'
+                  ? 'frost-glass-active'
+                  : 'frost-glass frost-glass-hover'
                   }`}
               >
                 <MessageCircle size={14} className="text-white/60" />
@@ -555,8 +586,8 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               <button
                 onClick={() => { setShowParticipants(!showParticipants); if (!showParticipants) { setShowChat(false); setShowTranscript(false); } setShowDeviceMenu(false); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showParticipants
-                    ? 'frost-glass-active'
-                    : 'frost-glass frost-glass-hover'
+                  ? 'frost-glass-active'
+                  : 'frost-glass frost-glass-hover'
                   }`}
               >
                 <Users size={14} className="text-white/60" />

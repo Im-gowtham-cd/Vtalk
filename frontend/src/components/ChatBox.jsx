@@ -3,23 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, X } from 'lucide-react';
 
-export default function ChatBox({ socket, roomId, userName, onClose }) {
-  const [messages, setMessages] = useState([]);
+export default function ChatBox({ socket, roomId, userName, messages, onClose }) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  // Listen for incoming messages
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleMessage = (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    };
-
-    socket.on('chat-message', handleMessage);
-    return () => { socket.off('chat-message', handleMessage); };
-  }, [socket]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -72,11 +59,10 @@ export default function ChatBox({ socket, roomId, userName, onClose }) {
               {!isMe && (
                 <span className="text-white/40 text-[10px] font-cabinet font-medium mb-0.5 ml-1">{msg.userName}</span>
               )}
-              <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm font-cabinet break-words ${
-                isMe
+              <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm font-cabinet break-words ${isMe
                   ? 'bg-[#556B2F]/40 text-white/90 rounded-br-md'
                   : 'bg-white/[0.06] text-white/80 rounded-bl-md'
-              }`}>
+                }`}>
                 {msg.message}
               </div>
               <span className="text-white/20 text-[9px] font-cabinet mt-0.5 mx-1">{formatTime(msg.timestamp)}</span>
