@@ -1,16 +1,24 @@
 services:
   - type: web
-    name: spicez-cam-backend
-    runtime: node
+    name: vtalk-backend
+    env: node
     region: oregon
     plan: free
     rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
-    envVars:
-      - key: PORT
-        value: 5000
-      - key: FRONTEND_URL
-        sync: false # set manually to your Vercel URL
     healthCheckPath: /
     autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
