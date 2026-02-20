@@ -1,6 +1,7 @@
 const express = require('express');
 const supabase = require('./supabase');
 const { authMiddleware } = require('./authMiddleware');
+const { extractTasksFromText } = require('./taskExtractor');
 
 const router = express.Router();
 
@@ -8,28 +9,34 @@ const router = express.Router();
 
 async function saveSession(userId, sessionData) {
     console.log(`[historyStore] Attempting to save session ${sessionData.sessionId} for user ${userId}`);
+    const payload = {
+        session_id: sessionData.sessionId,
+        user_id: userId,
+        room_id: sessionData.roomId,
+        date: sessionData.date,
+        duration: sessionData.duration,
+        participants: sessionData.participants || [],
+        transcript: sessionData.transcript || [],
+        tasks: sessionData.tasks || [],
+        summary: sessionData.summary || null,
+    };
+
     const { error } = await supabase
         .from('sessions')
-        .insert([{
-            session_id: sessionData.sessionId,
-            user_id: userId,
-            room_id: sessionData.roomId,
-            date: sessionData.date,
-            duration: sessionData.duration,
-            participants: sessionData.participants || [],
-            transcript: sessionData.transcript || [],
-            tasks: sessionData.tasks || [],
-        }]);
+        .upsert([payload], { onConflict: 'session_id,user_id' });
 
     if (error) {
-        // Ignore duplicate session_id for same user (multiple participants save the same session)
-        if (error.code !== '23505') {
-            console.error('[historyStore] saveSession error:', error.message);
+        // If the 'summary' column specifically is missing, retry without it
+        if (error.message.includes('summary')) {
+            console.warn('[historyStore] Supabase "summary" column missing. Retrying without it.');
+            delete payload.summary;
+            const { error: retryError } = await supabase.from('sessions').upsert([payload], { onConflict: 'session_id,user_id' });
+            if (retryError) console.error('[historyStore] saveSession retry error:', retryError.message);
         } else {
-            console.log('[historyStore] Session already exists, skipping.');
+            console.error('[historyStore] saveSession error:', error.message);
         }
     } else {
-        console.log(`[historyStore] Session ${sessionData.sessionId} saved successfully to Supabase.`);
+        console.log(`[historyStore] Session ${sessionData.sessionId} upserted successfully to Supabase.`);
     }
 }
 
@@ -115,6 +122,7 @@ router.get('/:sessionId', authMiddleware, async (req, res) => {
                 participants: data.participants || [],
                 transcript: data.transcript || [],
                 tasks: data.tasks || [],
+                summary: data.summary || null,
             }
         });
     } catch (err) {
@@ -156,6 +164,59 @@ router.patch('/:sessionId/tasks/:taskId', authMiddleware, async (req, res) => {
     } catch (err) {
         console.error('[historyStore] PATCH task error:', err);
         res.status(500).json({ error: 'Failed to update task' });
+    }
+});
+
+// POST /history/analyze-transcript — extract tasks from raw text and save to a manual session
+router.post('/analyze-transcript', authMiddleware, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text || text.trim().length < 10) {
+            return res.status(400).json({ error: 'Please provide more text to analyze' });
+        }
+
+        console.log('[historyStore] analyze-transcript received text length:', text.length);
+        const extracted = await extractTasksFromText(text);
+        console.log('[historyStore] extracted tasks count:', extracted.length);
+
+        if (extracted.length === 0) {
+            return res.json({ tasks: [], message: 'No tasks found in the text.' });
+        }
+
+        // Save these to a special "Manual" session for the user so they persist
+        // We use a fixed ID for the manual session per user
+        const manualSessionId = `manual_${req.user.id.substring(0, 8)}`;
+
+        // 1. Get existing manual tasks
+        const { data: existing } = await supabase
+            .from('sessions')
+            .select('tasks')
+            .eq('session_id', manualSessionId)
+            .eq('user_id', req.user.id)
+            .maybeSingle();
+
+        const allTasks = [...(existing?.tasks || []), ...extracted];
+
+        // 2. Upsert the manual session
+        const { error: upsertError } = await supabase
+            .from('sessions')
+            .upsert({
+                session_id: manualSessionId,
+                user_id: req.user.id,
+                room_id: 'Manual Analysis',
+                date: new Date().toISOString(),
+                duration: 0,
+                participants: [{ name: 'Manual Entry' }],
+                tasks: allTasks,
+                summary: 'Generated from Manual Transcript Entry'
+            });
+
+        if (upsertError) throw upsertError;
+
+        res.json({ tasks: extracted, totalCount: allTasks.length });
+    } catch (err) {
+        console.error('[historyStore] analyze-transcript error:', err);
+        res.status(500).json({ error: 'Failed to analyze text' });
     }
 });
 

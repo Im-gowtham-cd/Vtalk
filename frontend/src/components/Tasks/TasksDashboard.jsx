@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
     ArrowLeft, CheckCircle2, Circle, Clock, Filter,
-    Search, Download, Loader2, AlertCircle, ChevronRight
+    Search, Download, Loader2, AlertCircle, ChevronRight, Sparkles
 } from 'lucide-react';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
@@ -20,6 +20,8 @@ export default function TasksDashboard({ onBack, token, onSelectSession }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterPriority, setFilterPriority] = useState('ALL');
     const [filterStatus, setFilterStatus] = useState('ALL');
+    const [rawText, setRawText] = useState('');
+    const [analyzing, setAnalyzing] = useState(false);
 
     useEffect(() => {
         fetchTasks();
@@ -33,11 +35,52 @@ export default function TasksDashboard({ onBack, token, onSelectSession }) {
             if (res.ok) {
                 const data = await res.json();
                 setTasks(data.tasks || []);
+            } else {
+                console.error('Failed to fetch tasks, status:', res.status);
+                // Optional: alert('Failed to sync tasks from server');
             }
         } catch (err) {
             console.error('Failed to fetch tasks:', err);
+            alert('Could not connect to Task Center. Please check if the backend is running.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleManualAnalyze = async () => {
+        if (!rawText.trim() || analyzing) return;
+        setAnalyzing(true);
+        try {
+            console.log('[Tasks] Sending text for analysis to:', `${SOCKET_URL}/history/analyze-transcript`);
+            const res = await fetch(`${SOCKET_URL}/history/analyze-transcript`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ text: rawText }),
+            });
+
+            const data = await res.json().catch(() => ({ error: 'Invalid response from server' }));
+
+            if (res.ok) {
+                if (data.tasks && data.tasks.length > 0) {
+                    setRawText('');
+                    const taskList = data.tasks.map(t => `- ${t.text} (To: ${t.assignedTo})`).join('\n');
+                    alert(`Successfully extracted ${data.tasks.length} tasks:\n\n${taskList}`);
+                    fetchTasks(); // Refresh list to show new tasks
+                } else {
+                    alert('Gemini could not find any specific tasks in that text. Please try describing actions like "X will do Y by Date".');
+                }
+            } else {
+                alert(`Error: ${data.error || 'Failed to analyze text'}`);
+                if (res.status === 401) alert('Session expired. Please log in again.');
+            }
+        } catch (err) {
+            console.error('Manual analyze error:', err);
+            alert('Failed to connect to server. Ensure the backend is running at ' + SOCKET_URL);
+        } finally {
+            setAnalyzing(false);
         }
     };
 
@@ -161,6 +204,37 @@ export default function TasksDashboard({ onBack, token, onSelectSession }) {
                     </div>
                 </div>
 
+                {/* Quick Analyze Section */}
+                <div className="mb-10 p-6 rounded-3xl frost-glass-card border border-white/5 animate-fade-in group">
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-xl bg-[#6B8E3D]/10 flex items-center justify-center text-[#6B8E3D]">
+                            <Sparkles size={16} className="group-hover:animate-pulse" />
+                        </div>
+                        <h2 className="text-white/90 text-sm font-satoshi font-bold">Quick Analyze</h2>
+                        <span className="text-white/20 text-[10px] font-cabinet ml-auto uppercase tracking-widest hidden md:inline">Manual Transcript Entry</span>
+                    </div>
+                    <div className="space-y-4">
+                        <textarea
+                            value={rawText}
+                            onChange={(e) => setRawText(e.target.value)}
+                            placeholder="Paste raw transcript or meeting notes here... (e.g. 'I will send the report by tomorrow.')"
+                            className="w-full h-32 bg-[#0A0A0A]/30 border border-white/5 rounded-2xl p-4 text-sm font-cabinet text-white/80 placeholder:text-white/10 focus:outline-none focus:border-[#6B8E3D]/30 transition-all resize-none shadow-inner"
+                        />
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-white/20 font-cabinet max-w-xs">
+                                Our AI will scan for commitments, assignees, and deadlines.
+                            </p>
+                            <button
+                                onClick={handleManualAnalyze}
+                                disabled={analyzing || rawText.trim().length < 10}
+                                className="px-6 py-2.5 rounded-xl bg-[#6B8E3D] text-white text-sm font-satoshi font-bold transition-all hover:bg-[#7BAB47] hover:shadow-[0_8px_32px_rgba(107,142,61,0.2)] disabled:opacity-20 disabled:hover:shadow-none active:scale-[0.98] flex items-center gap-2"
+                            >
+                                {analyzing ? <Loader2 size={16} className="animate-spin" /> : 'Extract Tasks'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Tasks List */}
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-32 gap-4">
@@ -210,12 +284,19 @@ export default function TasksDashboard({ onBack, token, onSelectSession }) {
                                                     <div className={`w-2 h-2 rounded-full ${config.textClass.replace('text', 'bg')}`} />
                                                     <span className={`text-[10px] font-black tracking-widest uppercase ${config.textClass}`}>{config.label}</span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-white/30 text-xs font-cabinet">
-                                                    <span className="text-[10px]">👤</span> {task.assignedTo || 'Unassigned'}
+                                                <div className="flex items-center gap-1.5 text-white/40 text-xs font-cabinet">
+                                                    <span className="text-[10px] opacity-50">👤 To:</span>
+                                                    <span className="font-bold text-white/70">{task.assignedTo || 'Unassigned'}</span>
                                                 </div>
-                                                {task.deadline && (
+                                                {task.assignedBy && (
                                                     <div className="flex items-center gap-1.5 text-white/30 text-xs font-cabinet">
-                                                        <Clock size={11} className="text-[#6B8E3D]/40" /> {task.deadline}
+                                                        <span className="text-[10px] opacity-50">✍️ By:</span> {task.assignedBy}
+                                                    </div>
+                                                )}
+                                                {task.deadline && (
+                                                    <div className="flex items-center gap-1.5 text-white/40 text-xs font-cabinet">
+                                                        <Clock size={11} className="text-[#6B8E3D]/60" />
+                                                        <span className="text-[#6B8E3D]/80 font-bold">{task.deadline}</span>
                                                     </div>
                                                 )}
                                             </div>

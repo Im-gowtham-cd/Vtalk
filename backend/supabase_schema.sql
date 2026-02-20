@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     participants JSONB       DEFAULT '[]'::jsonb,
     transcript   JSONB       DEFAULT '[]'::jsonb,
     tasks        JSONB       DEFAULT '[]'::jsonb,
+    summary      TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     -- Each user can only have one record per session

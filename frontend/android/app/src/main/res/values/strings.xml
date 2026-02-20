@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vtalk</string>
+    <string name="title_activity_main">Vtalk</string>
+    <string name="package_name">com.vtalk.app</string>
+    <string name="custom_url_scheme">com.vtalk.app</string>
+</resources>

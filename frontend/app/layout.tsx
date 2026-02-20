@@ -3,7 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SpiceZ-Cam",
+  title: "Vtalk",
   description: "Secure peer-to-peer video calls",
 };
 

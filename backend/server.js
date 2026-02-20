@@ -8,7 +8,7 @@ require('dotenv').config();
 const authRouter = require('./auth');
 const { verifyToken } = require('./authMiddleware');
 const { router: historyRouter, saveSession } = require('./historyStore');
-const { extractTasks } = require('./taskExtractor');
+const { extractTasks, extractTasksFromText } = require('./taskExtractor');
 
 // Generate 5-char uppercase alphanumeric room ID
 function generateRoomId() {
@@ -65,11 +65,16 @@ const userNames = new Map();          // socketId -> userName
 const socketRooms = new Map();        // socketId -> roomId
 const socketUsers = new Map();        // socketId -> { id, name, email } (authenticated users)
 const roomTranscripts = new Map();    // roomId -> [{ speaker, timestamp, text }]
+const roomSummaries = new Map();      // roomId -> latest AI summary string
 const roomStartTimes = new Map();     // roomId -> epoch ms
 const roomParticipants = new Map();   // roomId -> [{ id, name }] (for history)
 
 const chatRateLimit = new Map();
 const CHAT_RATE_MS = 200;
+
+// Store session IDs and participants for rooms that were recently closed (60s shelf life)
+// This allows late-arriving transcription summaries to still save to the database.
+const closedRoomSessions = new Map(); // roomId -> { sessionId, participants: [{id, name}], expires: timestamp }
 
 // ── Socket.io ────────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
@@ -93,11 +98,13 @@ io.on('connection', (socket) => {
       password: password || null,
       creator: socket.id,
       participants: new Set([socket.id]),
+      sessionId: uuidv4(), // Stable ID for this meeting session
     });
     socket.join(roomId);
     socketRooms.set(socket.id, roomId);
     roomStartTimes.set(roomId, Date.now());
     roomTranscripts.set(roomId, []);
+    roomSummaries.set(roomId, '');
     roomParticipants.set(roomId, [{ id: socket.id, name: userNames.get(socket.id) || 'Anonymous' }]);
     callback({ roomId, success: true });
   });
@@ -228,13 +235,70 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('transcript-update', { segments: transcripts });
   });
 
+  // ── Update AI Summary ──────────────────────────────────────────────────────
+  socket.on('update-summary', async ({ roomId, summary }) => {
+    if (!roomId || !summary) return;
+    console.log(`[Backend] Received summary update for room ${roomId}`);
+    roomSummaries.set(roomId, summary);
+
+    // Also re-extract tasks from both transcript AND the new summary
+    const transcript = roomTranscripts.get(roomId) || [];
+    const startTime = roomStartTimes.get(roomId) || Date.now();
+
+    // Standard extraction from transcript segments
+    const transcriptTasks = await extractTasks(transcript, startTime);
+
+    // Advanced extraction from the meeting context (transcript and summary)
+    const summaryTasks = await extractTasksFromText(summary);
+
+    // Combine and deduplicate
+    const combinedTasks = [...transcriptTasks, ...summaryTasks];
+    console.log(`[Backend] update-summary: Extracted ${combinedTasks.length} total tasks for room ${roomId}`);
+
+    // Store in-memory so finalizeRoom doesn't have to re-extract
+    roomTranscripts.set(roomId + '_tasks', combinedTasks);
+
+    // Broadcast to active room members
+    io.to(roomId).emit('tasks-extracted', { tasks: combinedTasks });
+
+    // ✅ CRITICAL PERSISTENCE: Save to DB even if the room was just finalized
+    const room = rooms.get(roomId);
+    const closedSession = closedRoomSessions.get(roomId);
+
+    if (room || closedSession) {
+      const sessionId = room?.sessionId || closedSession?.sessionId;
+      const participants = room ? roomParticipants.get(roomId) : closedSession?.participants;
+      const transcript = roomTranscripts.get(roomId) || [];
+
+      // We use the roomParticipants map if it exists, otherwise the cached one from closedRoomSessions
+      if (participants) {
+        console.log(`[Backend] update-summary: Persisting tasks to Supabase for ${participants.length} participants.`);
+        for (const p of participants) {
+          const authUser = socketUsers.get(p.id);
+          if (authUser) {
+            await saveSession(authUser.id, {
+              sessionId,
+              roomId,
+              date: new Date().toISOString(),
+              duration: 0, // Duration is already set in the initial save
+              participants,
+              transcript,
+              tasks: combinedTasks,
+              summary,
+            });
+          }
+        }
+      }
+    }
+  });
+
   // ── Export to Notion ───────────────────────────────────────────────────────
   socket.on('export-to-notion', async ({ roomId, summary }, callback) => {
     try {
       const { createNotionDoc } = require('./notion');
       const transcript = roomTranscripts.get(roomId) || [];
       const startTime = roomStartTimes.get(roomId) || Date.now();
-      const tasks = extractTasks(transcript, startTime);
+      const tasks = await extractTasks(transcript, startTime);
 
       const url = await createNotionDoc(
         roomId,
@@ -250,15 +314,15 @@ io.on('connection', (socket) => {
   });
 
   // ── Leave room (explicit) ──────────────────────────────────────────────────
-  socket.on('leave-room', ({ roomId }) => {
-    handleLeave(socket, roomId);
+  socket.on('leave-room', async ({ roomId }) => {
+    await handleLeave(socket, roomId);
   });
 
   // ── Disconnect ─────────────────────────────────────────────────────────────
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const roomId = socketRooms.get(socket.id);
     if (roomId) {
-      handleLeave(socket, roomId);
+      await handleLeave(socket, roomId);
     }
     userNames.delete(socket.id);
     socketUsers.delete(socket.id);
@@ -266,7 +330,7 @@ io.on('connection', (socket) => {
   });
 
   // ── Helper: handle room leave + session save ───────────────────────────────
-  function handleLeave(sock, roomId) {
+  async function handleLeave(sock, roomId) {
     console.log(`[Backend] User ${sock.id} leaving room ${roomId}`);
     const room = rooms.get(roomId);
     if (!room) {
@@ -275,12 +339,12 @@ io.on('connection', (socket) => {
     }
 
     // Save session for this specific user before they are fully removed
-    saveUserSession(sock.id, roomId);
+    await saveUserSession(sock.id, roomId);
 
     if (room.creator === sock.id) {
       // Creator left → close room for everyone else
       io.to(roomId).emit('room-closed', { reason: 'Creator left the room' });
-      finalizeRoom(roomId);
+      await finalizeRoom(roomId);
       rooms.delete(roomId);
     } else {
       room.participants.delete(sock.id);
@@ -288,7 +352,7 @@ io.on('connection', (socket) => {
 
       // If room is now empty, finalize (cleanup state)
       if (room.participants.size === 0) {
-        finalizeRoom(roomId);
+        await finalizeRoom(roomId);
         rooms.delete(roomId);
       }
     }
@@ -296,7 +360,7 @@ io.on('connection', (socket) => {
     socketRooms.delete(sock.id);
   }
 
-  function saveUserSession(socketId, roomId) {
+  async function saveUserSession(socketId, roomId) {
     const authUser = socketUsers.get(socketId);
     if (!authUser) {
       console.log(`[Backend] User ${socketId} is not authenticated. Skipping DB save.`);
@@ -306,71 +370,91 @@ io.on('connection', (socket) => {
     const startTime = roomStartTimes.get(roomId) || Date.now();
     const duration = Math.floor((Date.now() - startTime) / 1000);
     const transcriptSegments = roomTranscripts.get(roomId) || [];
+    const roomSummary = roomSummaries.get(roomId) || '';
     const participantsList = roomParticipants.get(roomId) || [];
-    const tasks = extractTasks(transcriptSegments, startTime);
+
+    // Extract from both sources
+    const transcriptTasks = await extractTasks(transcriptSegments, startTime);
+    const summaryTasks = await extractTasksFromText(roomSummary);
+    const tasks = [...transcriptTasks, ...summaryTasks];
+
+    const room = rooms.get(roomId);
+    if (!room) return;
 
     const sessionData = {
-      sessionId: uuidv4(),
+      sessionId: room.sessionId, // Use stable ID
       roomId,
       date: new Date().toISOString(),
       duration,
       participants: participantsList,
       transcript: transcriptSegments,
       tasks,
+      summary: roomSummary,
     };
 
-    console.log(`[Backend] Individual save for ${authUser.email} in room ${roomId}`);
-    saveSession(authUser.id, sessionData);
+    console.log(`[Backend] saveUserSession: Saving for ${authUser.email} in room ${roomId}. Tasks found: ${tasks.length}`);
+    await saveSession(authUser.id, sessionData);
   }
 
-  function finalizeRoom(roomId) {
+  async function finalizeRoom(roomId) {
     console.log(`[Backend] Finalizing room: ${roomId}`);
     const startTime = roomStartTimes.get(roomId) || Date.now();
     const duration = Math.floor((Date.now() - startTime) / 1000);
     const transcriptSegments = roomTranscripts.get(roomId) || [];
+    const roomSummary = roomSummaries.get(roomId) || '';
     const participantsList = roomParticipants.get(roomId) || [];
 
+    const room = rooms.get(roomId);
     console.log(`[Backend] Room stats: ${transcriptSegments.length} segments, ${participantsList.length} participants`);
 
-    // Extract tasks from transcript
-    const tasks = extractTasks(transcriptSegments, startTime);
+    // ✅ Optimization: Check if we already extracted tasks during a recent summary update
+    let tasks = roomTranscripts.get(roomId + '_tasks');
+
+    if (!tasks) {
+      console.log(`[Backend] finalizeRoom: No cached tasks, performing final extraction...`);
+      // Extract tasks from BOTH transcript and summary (Gemini AI)
+      const transcriptTasks = await extractTasks(transcriptSegments, startTime);
+      const summaryTasks = await extractTasksFromText(roomSummary);
+      tasks = [...transcriptTasks, ...summaryTasks];
+    } else {
+      console.log(`[Backend] finalizeRoom: Using ${tasks.length} cached tasks.`);
+    }
 
     // Emit tasks to the room before it closes
+    console.log(`[Backend] finalizeRoom: Emitting ${tasks.length} tasks to room ${roomId}`);
     io.to(roomId).emit('tasks-extracted', { tasks });
 
     // Save session for each authenticated participant
     const sessionData = {
-      sessionId: uuidv4(),
+      sessionId: room.sessionId, // Always use the room's unique stable ID
       roomId,
       date: new Date().toISOString(),
       duration,
       participants: participantsList,
       transcript: transcriptSegments,
       tasks,
+      summary: roomSummary,
     };
 
     // Save for all participants that have an authenticated user entry
-    const room = rooms.get(roomId);
     let saveCount = 0;
-    if (room) {
-      for (const socketId of room.participants) {
-        const authUser = socketUsers.get(socketId);
-        if (authUser) {
-          console.log(`[Backend] Saving session for user: ${authUser.email}`);
-          saveSession(authUser.id, { ...sessionData });
-          saveCount++;
-        }
+    for (const socketId of room.participants) {
+      const authUser = socketUsers.get(socketId);
+      if (authUser) {
+        console.log(`[Backend] finalizeRoom: Saving session for user: ${authUser.email}. Tasks: ${tasks.length}`);
+        await saveSession(authUser.id, { ...sessionData });
+        saveCount++;
       }
     }
 
-    // Also try to save for the creator if they're authenticated
+    console.log(`[Backend] finalizeRoom: Room ${roomId} finalized. Successfully triggered ${saveCount} upserts.`);
     if (room?.creator) {
       const creatorUser = socketUsers.get(room.creator);
       if (creatorUser) {
         // Check if we already saved for the creator (they'd be in participants)
         if (!room.participants.has(room.creator)) {
           console.log(`[Backend] Saving session for creator: ${creatorUser.email}`);
-          saveSession(creatorUser.id, { ...sessionData });
+          await saveSession(creatorUser.id, { ...sessionData });
           saveCount++;
         }
       }
@@ -378,14 +462,39 @@ io.on('connection', (socket) => {
 
     console.log(`[Backend] Room ${roomId} finalized. Triggered ${saveCount} saves.`);
 
-    // Cleanup
+    // ✅ PRESERVE SESSION INFO for 60 seconds to catch late AI summaries
+    closedRoomSessions.set(roomId, {
+      sessionId: room.sessionId,
+      participants: participantsList,
+      expires: Date.now() + 60000
+    });
+
+    // Automated cleanup
+    setTimeout(() => {
+      const session = closedRoomSessions.get(roomId);
+      if (session && Date.now() >= session.expires) {
+        closedRoomSessions.delete(roomId);
+        console.log(`[Backend] Cleanup: Removed session info for expired room ${roomId}`);
+      }
+    }, 65000);
+
+    // Cleanup active stores
     roomTranscripts.delete(roomId);
+    roomSummaries.delete(roomId);
     roomStartTimes.delete(roomId);
     roomParticipants.delete(roomId);
   }
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('[Backend Error]:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`SpiceZ-Cam server running on port ${PORT}`);
+  console.log(`[Backend] Vtalk signaling server running on port ${PORT}`);
 });

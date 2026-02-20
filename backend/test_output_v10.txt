@@ -1,0 +1,155 @@
+﻿[dotenv@17.2.4] injecting env (8) from .env -- tip: ≡ƒôí add observability to secrets: https://dotenvx.com/ops
+[taskExtractor] Gemini AI initialized for task extraction.
+--- Testing Gemini Task Extraction (User Scenario) ---
+[taskExtractor] extractTasks called with 1 segments.
+[taskExtractor] Prompting Gemini...
+node : [taskExtractor] 
+Gemini error: GoogleGenerat
+iveAIFetchError: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generativelang
+uage.googleapis.com/v1beta/
+models/gemini-2.0-flash:gen
+erateContent: [429 Too 
+Many Requests] You 
+exceeded your current 
+quota, please check your 
+plan and billing details. 
+For more information on 
+this error, head to: https:
+//ai.google.dev/gemini-api/
+docs/rate-limits. To 
+monitor your current 
+usage, head to: 
+https://ai.dev/rate-limit. 
+At line:1 char:1
++ node test_gemini.js 2>&1 
+| Out-File -Encoding utf8 
+test_output_v10.tx ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: ([ta  
+  skExtractor]...ev/rate   
+ -limit. :String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+* Quota exceeded for 
+metric: generativelanguage.
+googleapis.com/generate_con
+tent_free_tier_input_token_
+count, limit: 0, model: 
+gemini-2.0-flash
+* Quota exceeded for 
+metric: generativelanguage.
+googleapis.com/generate_con
+tent_free_tier_requests, 
+limit: 0, model: 
+gemini-2.0-flash
+* Quota exceeded for 
+metric: generativelanguage.
+googleapis.com/generate_con
+tent_free_tier_requests, 
+limit: 0, model: 
+gemini-2.0-flash
+Please retry in 
+30.070673442s. [{"@type":"t
+ype.googleapis.com/google.r
+pc.Help","links":[{"descrip
+tion":"Learn more about 
+Gemini API quotas","url":"h
+ttps://ai.google.dev/gemini
+-api/docs/rate-limits"}]},{
+"@type":"type.googleapis.co
+m/google.rpc.QuotaFailure",
+"violations":[{"quotaMetric
+":"generativelanguage.googl
+eapis.com/generate_content_
+free_tier_input_token_count
+","quotaId":"GenerateConten
+tInputTokensPerModelPerMinu
+te-FreeTier","quotaDimensio
+ns":{"location":"global","m
+odel":"gemini-2.0-flash"}},
+{"quotaMetric":"generativel
+anguage.googleapis.com/gene
+rate_content_free_tier_requ
+ests","quotaId":"GenerateRe
+questsPerMinutePerProjectPe
+rModel-FreeTier","quotaDime
+nsions":{"location":"global
+","model":"gemini-2.0-flash
+"}},{"quotaMetric":"generat
+ivelanguage.googleapis.com/
+generate_content_free_tier_
+requests","quotaId":"Genera
+teRequestsPerDayPerProjectP
+erModel-FreeTier","quotaDim
+ensions":{"location":"globa
+l","model":"gemini-2.0-flas
+h"}}]},{"@type":"type.googl
+eapis.com/google.rpc.RetryI
+nfo","retryDelay":"30s"}]
+    at handleResponseNotOk 
+(F:\Hackathon\Vtalk\backend
+\node_modules\@google\gener
+ative-ai\dist\index.js:434:
+11)
+    at process.processTicks
+AndRejections (node:interna
+l/process/task_queues:103:5
+)
+    at async makeRequest (F
+:\Hackathon\Vtalk\backend\n
+ode_modules\@google\generat
+ive-ai\dist\index.js:403:9)
+    at async 
+generateContent (F:\Hackath
+on\Vtalk\backend\node_modul
+es\@google\generative-ai\di
+st\index.js:867:22)
+    at async extractTasks (
+F:\Hackathon\Vtalk\backend\
+taskExtractor.js:63:24)
+    at async 
+testExtraction (F:\Hackatho
+n\Vtalk\backend\test_gemini
+.js:12:23) {
+  status: 429,
+  statusText: 'Too Many 
+Requests',
+  errorDetails: [
+    { '@type': 'type.google
+apis.com/google.rpc.Help', 
+links: [Array] },
+    {
+      '@type': 'type.google
+apis.com/google.rpc.QuotaFa
+ilure',
+      violations: [Array]
+    },
+    {
+      '@type': 'type.google
+apis.com/google.rpc.RetryIn
+fo',
+      retryDelay: '30s'
+    }
+  ]
+}
+[taskExtractor] Extracted 1 tasks from 1 segments.
+[taskExtractor] Sample: {"id":"a93148d6-1ba5-443a-88fa-322e67a56ec3","text":"Finish the marketing plan within Thursday","assignedTo":"Team","assignedBy":"Alice","deadline":null,"priority":"MEDIUM","mentionedAt":"NaN:NaN:NaN","status":"pending"}
+Extracted Tasks: [
+  {
+    "id": "a93148d6-1ba5-443a-88fa-322e67a56ec3",
+    "text": "Finish the marketing plan within Thursday",
+    "assignedTo": "Team",
+    "assignedBy": "Alice",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  }
+]
+SUCCESS: Gemini extracted tasks!

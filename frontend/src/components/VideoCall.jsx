@@ -128,6 +128,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         return;
       }
     }
+    socket?.emit('leave-room', { roomId });
     cleanup();
     onLeave();
   };
@@ -161,7 +162,7 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     setShowStopRecordConfirm(false);
   };
 
-  // ✅ FIX 2: Hardened transcription — auto-tries local if dev, otherwise Cloud.
+  // ✅ Hardened transcription — auto-tries local if dev, otherwise Cloud.
   const handleTranscription = async (blob) => {
     setIsTranscribing(true);
     setShowTranscript(true);
@@ -199,14 +200,12 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         }
 
         const puterAI = window.puter?.ai;
-        // Case-insensitive check for common Puter AI methods
         const transcribeFunction = puterAI?.transcribe || puterAI?.speech2txt;
 
         if (typeof transcribeFunction !== 'function') {
           throw new Error('Puter AI Transcription service is currently unavailable.');
         }
 
-        // Call the transcription function (Blob/File supported)
         text = await transcribeFunction(blob);
         console.log('[AI] Puter response received successfully.');
       }
@@ -224,12 +223,10 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         handleAISummary(finalText);
       } else {
         console.warn('[AI] Transcription returned empty text.');
-        // Don't show an error to user, just log it. They might have just had silence.
       }
 
     } catch (err) {
       console.error('[AI] Transcription error:', err.message);
-      // Surface the error as a transcript segment so the user can see it
       if (socket) {
         socket.emit('transcript-segment', {
           roomId,
@@ -249,25 +246,20 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     const textToProcess = overrideText || segments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
     if (!textToProcess) return;
 
-    // ✅ FIX 4: Don't crash if puter isn't loaded — just skip AI summary gracefully
-    if (typeof window === 'undefined' || !window.puter || typeof window.puter.ai?.chat !== 'function') {
-      console.warn('[AI] Puter.js not available — skipping AI summary.');
-      setAiSummary('⚠️ AI summary unavailable (Puter.js not loaded). Your transcript is above.');
-      setShowTranscript(true);
-      return;
-    }
-
     setIsProcessingAI(true);
+    setAiSummary('Generating AI summary and extracting tasks...');
+
     try {
-      const response = await window.puter.ai.chat(
-        `Please summarize this meeting transcript and list the key action items and decisions:\n\n${textToProcess}`,
-        { model: 'claude-3-5-sonnet' }
-      );
-      setAiSummary(response.toString());
+      // We emit the full transcript text to the backend, which will then use its own Gemini instance
+      // to generate the summary and tasks, ensuring higher reliability than client-side Puter.
+      socket?.emit('update-summary', { roomId, summary: textToProcess });
+
+      // Update UI to show we sent it
+      setAiSummary('AI processing started on server...');
       setShowTranscript(true);
     } catch (err) {
-      console.error('[AI] Puter summary error:', err);
-      setAiSummary('⚠️ AI summary failed. Check console for details.');
+      console.error('[AI] Error triggering summary:', err);
+      setAiSummary('⚠️ AI processing failed to start.');
     } finally {
       setIsProcessingAI(false);
     }
@@ -294,17 +286,6 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
     'from-teal-400 to-teal-600',
     'from-rose-400 to-rose-600',
   ];
-
-  const handleExportNotion = () => {
-    if (!aiSummary || isProcessingAI) return;
-    socket.emit('export-to-notion', { roomId, summary: aiSummary }, (res) => {
-      if (res.success) {
-        window.open(res.url, '_blank');
-      } else {
-        alert(`Export failed: ${res.error}`);
-      }
-    });
-  };
 
   return (
     <div className={`flex flex-col h-screen bg-[#0A0A0A] transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
@@ -345,9 +326,9 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
         </div>
       )}
 
-      {/* Video Grid + Transcript Panel */}
+      {/* Video Grid + Sidebar Panels */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 p-2 sm:p-4 overflow-hidden">
+        <div className="flex-1 p-2 sm:p-4 overflow-hidden relative">
           <div className={`grid gap-2 sm:gap-3 h-full auto-rows-fr ${tileCount === 1
             ? 'grid-cols-1 max-w-lg sm:max-w-3xl mx-auto'
             : tileCount === 2
@@ -382,46 +363,59 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             )}
 
             {/* Remote Videos */}
-            {Object.entries(remoteStreams).map(([peerId, stream], idx) => {
-              const peerMedia = remoteMediaState[peerId];
+            {participants.map((p, idx) => {
+              const stream = remoteStreams[p.id];
+              const mediaState = remoteMediaState[p.id] || { audio: true, video: true };
               return (
                 <VideoPlayer
-                  key={peerId}
+                  key={p.id}
                   stream={stream}
                   muted={false}
-                  label={nameMap[peerId] || `Peer ${peerId.slice(0, 6)}`}
-                  isAudioMuted={peerMedia ? !peerMedia.audio : false}
-                  isVideoOff={peerMedia ? !peerMedia.video : false}
+                  label={p.name}
+                  isAudioMuted={!mediaState.audio}
+                  isVideoOff={!mediaState.video}
                   isLocal={false}
-                  isScreenSharing={!!remoteScreenState[peerId]}
-                  avatarColor={avatarColors[idx % avatarColors.length]}
+                  isScreenSharing={!!remoteScreenState[p.id]}
+                  avatarColor={avatarColors[(idx + 1) % avatarColors.length]}
                 />
               );
             })}
           </div>
         </div>
 
-        {/* Transcript Panel (right side) */}
-        {showTranscript && (
-          <div className="shrink-0 p-2 sm:p-3">
-            <TranscriptPanel
-              segments={segments}
-              interimText={interimText}
-              aiSummary={aiSummary}
-              isProcessingAI={isProcessingAI}
-              isTranscribing={isTranscribing}
-              useLocalWhisper={useLocalWhisper}
-              onToggleLocal={() => setUseLocalWhisper(!useLocalWhisper)}
-              onRunAI={() => handleAISummary()}
-              onExportNotion={handleExportNotion}
-              onClose={() => setShowTranscript(false)}
-            />
+        {/* Sidebar panels (Transcript and ChatBox) */}
+        {(showTranscript || showChat) && (
+          <div className="w-80 sm:w-96 shrink-0 p-2 sm:p-4 flex flex-col gap-4 animate-[fade-in-right_0.2s_ease-out]">
+            {showTranscript && (
+              <TranscriptPanel
+                roomId={roomId}
+                segments={segments}
+                interimText={interimText}
+                aiSummary={aiSummary}
+                isProcessingAI={isProcessingAI}
+                isTranscribing={isTranscribing}
+                useLocalWhisper={useLocalWhisper}
+                onToggleLocal={() => setUseLocalWhisper(!useLocalWhisper)}
+                onRunAI={() => handleAISummary()}
+                onClose={() => setShowTranscript(false)}
+              />
+            )}
+
+            {showChat && (
+              <ChatBox
+                socket={socket}
+                roomId={roomId}
+                userName={userName}
+                messages={chatMessages}
+                onClose={() => setShowChat(false)}
+              />
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom bar */}
-      <div className="relative px-3 sm:px-5 py-3 sm:py-4">
+      <div className="relative px-3 sm:px-5 py-3 sm:py-4 border-t border-white/[0.05]">
         <div className="flex items-end justify-between gap-3">
 
           {/* Left: Timer + Live + Room code */}
@@ -584,33 +578,27 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
             {/* Leave */}
             <button
               onClick={handleLeave}
-              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all duration-300 active:scale-[0.94]"
-              title="Leave call"
+              disabled={isTranscribing}
+              className={`flex items-center gap-3 px-6 h-11 sm:h-12 rounded-full transition-all duration-300 active:scale-[0.94] ${isTranscribing || isProcessingAI
+                  ? 'bg-amber-500/20 text-amber-500 ring-1 ring-amber-500/50 cursor-wait'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+                }`}
+              title={isTranscribing ? 'Finalizing your recording...' : 'Leave call'}
             >
-              <PhoneOff size={18} className="text-white" />
+              <PhoneOff size={18} />
+              {(isTranscribing || isProcessingAI) && (
+                <span className="text-sm font-satoshi font-bold animate-pulse">
+                  Finalizing...
+                </span>
+              )}
             </button>
           </div>
 
           {/* Right: Chat + Participants + Transcript */}
           <div className="flex flex-col items-end gap-2 shrink-0">
-            {/* Panels (chat or participants) */}
-            <div className="relative" ref={chatRef}>
-              {showChat && (
-                <div className="absolute bottom-full mb-3 right-0 z-50 animate-[fade-in-up_0.2s_ease-out]">
-                  <ChatBox
-                    socket={socket}
-                    roomId={roomId}
-                    userName={userName}
-                    messages={chatMessages}
-                    onClose={() => setShowChat(false)}
-                  />
-                </div>
-              )}
-            </div>
-
             <div ref={participantsRef}>
               {showParticipants && (
-                <div className="w-64 sm:w-72 rounded-2xl frost-glass-panel shadow-2xl overflow-hidden animate-[fade-in-up_0.2s_ease-out]">
+                <div className="absolute bottom-full mb-3 right-0 w-64 sm:w-72 rounded-2xl frost-glass-panel shadow-2xl overflow-hidden animate-[fade-in-up_0.2s_ease-out] z-50">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
                     <span className="text-white/90 text-sm font-satoshi font-bold">In this call</span>
                     <button onClick={() => setShowParticipants(false)} className="text-white/30 hover:text-white/60 transition-colors">
@@ -657,12 +645,6 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
                         </div>
                       );
                     })}
-
-                    {participants.length === 0 && (
-                      <div className="px-4 py-6 text-center">
-                        <span className="text-white/20 text-xs font-cabinet">Waiting for others to join...</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -674,32 +656,31 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
               <button
                 onClick={() => {
                   setShowTranscript(!showTranscript);
-                  if (!showTranscript) { setShowChat(false); setShowParticipants(false); }
                   setShowDeviceMenu(false);
                 }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showTranscript
-                  ? 'frost-glass-active'
+                  ? 'frost-glass-active border-[#6B8E3D]/50 text-[#6B8E3D]'
                   : 'frost-glass frost-glass-hover'
                   }`}
               >
-                <FileText size={14} className="text-white/60" />
-                <span className="text-white/70 text-sm font-cabinet font-medium">Transcript</span>
+                <FileText size={14} className={showTranscript ? "text-[#6B8E3D]" : "text-white/60"} />
+                <span className={`text-sm font-cabinet font-medium ${showTranscript ? "text-[#6B8E3D]" : "text-white/70"}`}>Transcript</span>
               </button>
 
               {/* Chat toggle */}
               <button
                 onClick={() => {
                   setShowChat(!showChat);
-                  if (!showChat) { setUnreadCount(0); setShowParticipants(false); setShowTranscript(false); }
+                  if (!showChat) setUnreadCount(0);
                   setShowDeviceMenu(false);
                 }}
                 className={`relative flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showChat
-                  ? 'frost-glass-active'
+                  ? 'frost-glass-active border-[#6B8E3D]/50 text-[#6B8E3D]'
                   : 'frost-glass frost-glass-hover'
                   }`}
               >
-                <MessageCircle size={14} className="text-white/60" />
-                <span className="text-white/70 text-sm font-cabinet font-medium">Chat</span>
+                <MessageCircle size={14} className={showChat ? "text-[#6B8E3D]" : "text-white/60"} />
+                <span className={`text-sm font-cabinet font-medium ${showChat ? "text-[#6B8E3D]" : "text-white/70"}`}>Chat</span>
                 {unreadCount > 0 && (
                   <span className="w-5 h-5 rounded-full bg-[#556B2F] flex items-center justify-center">
                     <span className="text-white text-[9px] font-satoshi font-bold">{unreadCount > 9 ? '9+' : unreadCount}</span>
@@ -709,14 +690,14 @@ export default function VideoCall({ roomId, userName, onLeave, initialAudioMuted
 
               {/* Participants toggle */}
               <button
-                onClick={() => { setShowParticipants(!showParticipants); if (!showParticipants) { setShowChat(false); setShowTranscript(false); } setShowDeviceMenu(false); }}
+                onClick={() => { setShowParticipants(!showParticipants); setShowDeviceMenu(false); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-2xl transition-all duration-300 ${showParticipants
-                  ? 'frost-glass-active'
+                  ? 'frost-glass-active border-[#6B8E3D]/50 text-[#6B8E3D]'
                   : 'frost-glass frost-glass-hover'
                   }`}
               >
-                <Users size={14} className="text-white/60" />
-                <span className="text-white/70 text-sm font-cabinet font-medium">{participantCount}</span>
+                <Users size={14} className={showParticipants ? "text-[#6B8E3D]" : "text-white/60"} />
+                <span className={`text-sm font-cabinet font-medium ${showParticipants ? "text-[#6B8E3D]" : "text-white/70"}`}>{participantCount}</span>
                 <ChevronUp size={12} className={`text-white/40 transition-transform duration-300 ${showParticipants ? 'rotate-180' : ''}`} />
               </button>
             </div>

@@ -1,0 +1,96 @@
+﻿[dotenv@17.2.4] injecting env (8) from .env -- tip: ΓÜÖ∩╕Å  write to custom object with { processEnv: myObject }
+[taskExtractor] Gemini AI initialized for task extraction.
+--- Testing Gemini Task Extraction (User Scenario) ---
+[taskExtractor] extractTasks called with 1 segments.
+[taskExtractor] Prompting Gemini...
+[taskExtractor] Gemini Raw Response: [
+  {
+    "text": "Implement the payment gateway backend integration",
+    "assignedTo": "Unkissed",
+    "assignedBy": "Vijay",
+    "priority": "HIGH",
+    "deadline": "2026-03-05"
+  },
+  {
+    "text": "Design the payment page UI",
+    "assignedTo": "Meena",
+    "assignedBy": "Vijay",
+    "priority": "HIGH",
+    "deadline": "2026-03-04"
+  },
+  {
+    "text": "Implement the integration testing",
+    "assignedTo": "Vijay",
+    "assignedBy": "Vijay",
+    "priority": "MEDIUM",
+    "deadline": null
+  },
+  {
+    "text": "Integrate frontend with payment backend (referenced as enter the content with payment backhand)",
+    "assignedTo": "Ravi",
+    "assignedBy": "Vijay",
+    "priority": "HIGH",
+    "deadline": "2026-03-11"
+  },
+  {
+    "text": "Prepare test cases and complete testing",
+    "assignedTo": "Vibya",
+    "assignedBy": "Vijay",
+    "priority": "HIGH",
+    "deadline": "2026-02-21"
+  }
+]
+[taskExtractor] Successfully parsed 5 tasks from Gemini.
+Extracted Tasks: [
+  {
+    "id": "3a6527a1-ef61-4a7f-a13c-a46472d1548f",
+    "text": "Implement the payment gateway backend integration",
+    "assignedTo": "Unkissed",
+    "assignedBy": "Vijay",
+    "deadline": "2026-03-05",
+    "priority": "HIGH",
+    "mentionedAt": "AI Analyzed",
+    "status": "pending"
+  },
+  {
+    "id": "0696ddbc-45b8-4a89-9738-b95fde1c6671",
+    "text": "Design the payment page UI",
+    "assignedTo": "Meena",
+    "assignedBy": "Vijay",
+    "deadline": "2026-03-04",
+    "priority": "HIGH",
+    "mentionedAt": "AI Analyzed",
+    "status": "pending"
+  },
+  {
+    "id": "03f12edf-eae2-49b4-bf8c-566cc935f4dc",
+    "text": "Implement the integration testing",
+    "assignedTo": "Vijay",
+    "assignedBy": "Vijay",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "AI Analyzed",
+    "status": "pending"
+  },
+  {
+    "id": "5f8ba7db-91e3-49b8-b84e-1fe1a7dfd6c1",
+    "text": "Integrate frontend with payment backend (referenced as enter the content with payment backhand)",
+    "assignedTo": "Ravi",
+    "assignedBy": "Vijay",
+    "deadline": "2026-03-11",
+    "priority": "HIGH",
+    "mentionedAt": "AI Analyzed",
+    "status": "pending"
+  },
+  {
+    "id": "257b3844-4c1a-4bdc-9bed-cf76c96c7572",
+    "text": "Prepare test cases and complete testing",
+    "assignedTo": "Vibya",
+    "assignedBy": "Vijay",
+    "deadline": "2026-02-21",
+    "priority": "HIGH",
+    "mentionedAt": "AI Analyzed",
+    "status": "pending"
+  }
+]
+SUCCESS: Gemini extracted tasks!

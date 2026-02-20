@@ -1,0 +1,48 @@
+﻿[dotenv@17.2.4] injecting env (8) from .env -- tip: ≡ƒöæ add access controls to secrets: https://dotenvx.com/ops
+[taskExtractor] Gemini AI initialized for task extraction.
+--- Testing Gemini Task Extraction ---
+[taskExtractor] Extracted 4 tasks from 3 segments.
+[taskExtractor] Sample: {"id":"3cafd1a5-fbaa-444a-b74f-82c6ce99ea41","text":"The documentation by Friday","assignedTo":"Unassigned","assignedBy":"Alice","deadline":null,"priority":"MEDIUM","mentionedAt":"NaN:NaN:NaN","status":"pending"}
+Extracted Tasks: [
+  {
+    "id": "3cafd1a5-fbaa-444a-b74f-82c6ce99ea41",
+    "text": "The documentation by Friday",
+    "assignedTo": "Unassigned",
+    "assignedBy": "Alice",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  },
+  {
+    "id": "7cc1b940-2bd7-4dce-a248-042fb4b55c0b",
+    "text": "Start the meeting",
+    "assignedTo": "Team",
+    "assignedBy": "Alice",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  },
+  {
+    "id": "a356fc2d-d9e0-45ff-9a85-562df7345654",
+    "text": "Also fix that bug in the login flow tomorrow",
+    "assignedTo": "Bob",
+    "assignedBy": "Bob",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  },
+  {
+    "id": "14678a37-bde5-4d4c-9540-0fc20bef225b",
+    "text": "Handle the server migration next week",
+    "assignedTo": "Charlie",
+    "assignedBy": "Charlie",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  }
+]
+SUCCESS: Gemini extracted tasks!

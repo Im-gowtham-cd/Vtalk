@@ -66,15 +66,7 @@ export default function TranscriptPanel({ segments, interimText, aiSummary, isPr
                         {(isProcessingAI || isTranscribing) ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                         AI Summary
                     </button>
-                    <button
-                        onClick={() => typeof onExportNotion === 'function' && onExportNotion()}
-                        disabled={!aiSummary || isProcessingAI}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-satoshi font-bold transition-all disabled:opacity-30"
-                        title="Export to Notion"
-                    >
-                        <FileText size={12} />
-                        Notion
-                    </button>
+
                     <button onClick={onClose} className="text-white/30 hover:text-white/60 transition-colors">
                         <X size={14} />
                     </button>

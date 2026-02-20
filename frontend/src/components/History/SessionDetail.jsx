@@ -185,6 +185,19 @@ export default function SessionDetail({ sessionId, onBack, token }) {
                     )}
                 </div>
 
+                {/* AI Summary Section */}
+                {session.summary && (
+                    <div className="mb-8 p-5 rounded-2xl bg-[#6B8E3D]/5 border border-[#6B8E3D]/10 animate-fade-in shadow-inner">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-[#6B8E3D]">✨</span>
+                            <h3 className="text-[#6B8E3D] text-[10px] font-satoshi font-bold uppercase tracking-widest">AI Summary</h3>
+                        </div>
+                        <p className="text-white/80 text-sm font-cabinet leading-relaxed whitespace-pre-wrap">
+                            {session.summary}
+                        </p>
+                    </div>
+                )}
+
                 {/* Participants */}
                 {session.participants && session.participants.length > 0 && (
                     <div className="mb-6">

@@ -71,8 +71,8 @@ export default function AuthModal() {
                         <Video size={24} className="text-[#6B8E3D]" />
                     </div>
                     <h1 className="text-3xl font-black tracking-tight font-satoshi">
-                        <span className="text-[#556B2F]">Spice</span><span className="text-[#6B8E3D]">Z</span>
-                        <span className="text-white/90">-Cam</span>
+                        <span className="text-[#556B2F]">V</span><span className="text-[#6B8E3D]">T</span>
+                        <span className="text-white/90">alk</span>
                     </h1>
                     <p className="text-white/30 text-sm font-cabinet mt-1">Peer-to-peer video, no strings attached</p>
                 </div>

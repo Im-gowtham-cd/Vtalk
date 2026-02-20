@@ -1,5 +1,5 @@
-// Build ICE servers from env vars (TURN) + free STUN
 const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME;
 const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
 
@@ -105,9 +105,9 @@ export function createPeerConnection(peerId, socket, localStream, onRemoteStream
           params.encodings[0].maxFramerate = 30;
           // Prefer maintain-framerate over maintain-resolution for smoothness
           params.degradationPreference = 'maintain-framerate';
-          sender.setParameters(params).catch(() => {});
+          sender.setParameters(params).catch(() => { });
         }
-      } catch {}
+      } catch { }
     }
   });
 

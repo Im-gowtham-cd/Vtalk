@@ -44,6 +44,12 @@ export function useSocket() {
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] Connection error:', err.message);
+      if (err.message === 'xhr poll error') {
+        console.warn('[Socket] Server might be down or unreachable at:', SOCKET_URL);
+      }
+    });
 
     // If already connected, sync state
     if (socket.connected) setIsConnected(true);

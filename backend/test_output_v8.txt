@@ -1,0 +1,80 @@
+﻿[dotenv@17.2.4] injecting env (8) from .env -- tip: ΓÜÖ∩╕Å  suppress all logs with { quiet: true }
+[taskExtractor] Gemini AI initialized for task extraction.
+--- Testing Gemini Task Extraction (User Scenario) ---
+[taskExtractor] extractTasks called with 1 segments.
+[taskExtractor] Prompting Gemini...
+node : [taskExtractor] 
+Gemini error: GoogleGenerat
+iveAIFetchError: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generativelang
+uage.googleapis.com/v1beta/
+models/gemini-1.5-flash-lat
+est:generateContent: [404 
+Not Found] models/gemini-1.
+5-flash-latest is not 
+found for API version 
+v1beta, or is not 
+supported for 
+generateContent. Call 
+ListModels to see the list 
+of available models and 
+their supported methods.
+At line:1 char:1
++ node test_gemini.js 2>&1 
+| Out-File -Encoding utf8 
+test_output_v8.txt ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: ([ta  
+  skExtractor]...ported    
+ methods.:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+    at handleResponseNotOk 
+(F:\Hackathon\Vtalk\backend
+\node_modules\@google\gener
+ative-ai\dist\index.js:434:
+11)
+    at process.processTicks
+AndRejections (node:interna
+l/process/task_queues:103:5
+)
+    at async makeRequest (F
+:\Hackathon\Vtalk\backend\n
+ode_modules\@google\generat
+ive-ai\dist\index.js:403:9)
+    at async 
+generateContent (F:\Hackath
+on\Vtalk\backend\node_modul
+es\@google\generative-ai\di
+st\index.js:867:22)
+    at async extractTasks (
+F:\Hackathon\Vtalk\backend\
+taskExtractor.js:63:24)
+    at async 
+testExtraction (F:\Hackatho
+n\Vtalk\backend\test_gemini
+.js:12:23) {
+  status: 404,
+  statusText: 'Not Found',
+  errorDetails: undefined
+}
+[taskExtractor] Extracted 1 tasks from 1 segments.
+[taskExtractor] Sample: {"id":"93dad00d-8c54-4560-aed6-d194ed503f95","text":"Finish the marketing plan within Thursday","assignedTo":"Team","assignedBy":"Alice","deadline":null,"priority":"MEDIUM","mentionedAt":"NaN:NaN:NaN","status":"pending"}
+Extracted Tasks: [
+  {
+    "id": "93dad00d-8c54-4560-aed6-d194ed503f95",
+    "text": "Finish the marketing plan within Thursday",
+    "assignedTo": "Team",
+    "assignedBy": "Alice",
+    "deadline": null,
+    "priority": "MEDIUM",
+    "mentionedAt": "NaN:NaN:NaN",
+    "status": "pending"
+  }
+]
+SUCCESS: Gemini extracted tasks!

@@ -1,152 +1,149 @@
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// Initialize Gemini if API key is present
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+let genAI = null;
+if (GEMINI_API_KEY) {
+    genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    console.log('[taskExtractor] Gemini AI initialized for task extraction.');
+}
 
 /**
- * Extract structured tasks from a transcript using rule-based NLP.
- *
- * @param {Array<{ speaker: string, timestamp: number, text: string }>} segments
- * @param {number} callStartTime — epoch ms when the call started (for mentionedAt calculation)
- * @returns {Array<Object>} extracted tasks
+ * Extract structured tasks from a transcript using Gemini AI.
+ * Falls back to rule-based extraction if API fails.
  */
-function extractTasks(segments, callStartTime = 0) {
+async function extractTasks(segments, callStartTime = 0) {
+    console.log(`[taskExtractor] extractTasks called with ${segments.length} segments.`);
+    if (!genAI) {
+        console.warn('[taskExtractor] Gemini API not configured. Using rule-based extraction.');
+        return extractTasksRuleBased(segments, callStartTime);
+    }
+
+    // Prepare transcript for Gemini
+    const transcriptText = segments
+        .map(s => `[${s.speaker}]: ${s.text}`)
+        .join('\n');
+
+    if (!transcriptText.trim()) return [];
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const prompt = `
+        Analyze the following meeting transcript and extract a list of action items/tasks.
+        Today is: ${dayOfWeek}, ${today}.
+
+        For each task, identify:
+        1. The task description (clear and concise).
+        2. Who is assigned to the task (e.g., Meena, Vijay, or "Unassigned").
+        3. Who assigned the task.
+        4. The priority (HIGH, MEDIUM, LOW).
+        5. The deadline in YYYY-MM-DD format (or null).
+
+        Output ONLY a valid JSON array of objects with keys: "text", "assignedTo", "assignedBy", "priority", "deadline"
+
+        Transcript:
+        ${transcriptText}
+    `;
+
+    let retryCount = 0;
+    const maxRetries = 2;
+    let jsonText = '';
+
+    while (retryCount <= maxRetries) {
+        try {
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            console.log('[taskExtractor] Prompting Gemini...');
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            jsonText = response.text().trim();
+
+            if (jsonText.startsWith('```json')) {
+                jsonText = jsonText.replace(/^```json/, '').replace(/```$/, '').trim();
+            } else if (jsonText.startsWith('```')) {
+                jsonText = jsonText.replace(/^```/, '').replace(/```$/, '').trim();
+            }
+            console.log('[taskExtractor] Gemini Raw Response:', jsonText);
+            break;
+        } catch (err) {
+            if (err.status === 429 && retryCount < maxRetries) {
+                const delay = 5000 * Math.pow(2, retryCount);
+                console.warn(`[taskExtractor] 429 Quota hit. Retrying in ${delay / 1000}s...`);
+                await new Promise(r => setTimeout(r, delay));
+                retryCount++;
+                continue;
+            }
+            console.error('[taskExtractor] Gemini error:', err.message);
+            return extractTasksRuleBased(segments, callStartTime);
+        }
+    }
+
+    try {
+        const aiTasks = JSON.parse(jsonText);
+        console.log(`[taskExtractor] Successfully parsed ${aiTasks.length} tasks from Gemini.`);
+
+        return aiTasks.map(task => ({
+            id: uuidv4(),
+            text: task.text,
+            assignedTo: task.assignedTo || 'Unassigned',
+            assignedBy: task.assignedBy || 'AI Analysis',
+            deadline: task.deadline || null,
+            priority: task.priority || 'MEDIUM',
+            mentionedAt: 'AI Analyzed',
+            status: 'pending'
+        }));
+    } catch (err) {
+        console.error('[taskExtractor] Parsing error:', err.message);
+        return extractTasksRuleBased(segments, callStartTime);
+    }
+}
+
+/** Legacy Rule-Based Fallback */
+function extractTasksRuleBased(segments, callStartTime = 0) {
     const tasks = [];
-
-    // Combine patterns for task detection
     const patterns = [
-        // "I will [action]"  / "I'll [action]"
-        {
-            regex: /\b(?:i will|i'll|i'm going to|i am going to)\s+(.+?)(?:\.|$)/gi,
-            getAssignedTo: (match, speaker) => speaker,
-            getAssignedBy: (match, speaker) => speaker,
-        },
-        // "[Name] will [action]"
-        {
-            regex: /\b([A-Z][a-z]+)\s+(?:will|should|needs to|has to|can|is going to)\s+(.+?)(?:\.|$)/gi,
-            getAssignedTo: (match) => match[1],
-            getAssignedBy: (match, speaker) => speaker,
-            textGroup: 2,
-        },
-        // "can you [action]" / "could you [action]" / "please [action]"
-        {
-            regex: /\b(?:can you|could you|would you|please|kindly)\s+(?:send|finish|complete|write|update|check|fix|schedule|call|email|reach out to)\s+(.+?)(?:\?|\.|$)/gi,
-            getAssignedTo: () => 'Unassigned',
-            getAssignedBy: (match, speaker) => speaker,
-        },
-        // "we need to [action]" / "let's [action]"
-        {
-            regex: /\b(?:we need to|we should|let's|lets|we have to|it's important to)\s+(.+?)(?:\.|$)/gi,
-            getAssignedTo: () => 'Team',
-            getAssignedBy: (match, speaker) => speaker,
-        },
+        { regex: /\b(?:i will|i'll|i'm going to)\s+(.+?)(?:\.|$)/gi, getAssignedTo: (m, s) => s },
+        { regex: /\b([A-Z][a-z]+)\s+(?:will|should|has to)\s+(.+?)(?:\.|$)/gi, getAssignedTo: m => m[1], textGroup: 2 }
     ];
-
-    // Deadline patterns
-    const deadlinePatterns = [
-        { regex: /\bby\s+(tomorrow)\b/i, resolve: () => getRelativeDate(1) },
-        { regex: /\bby\s+(today)\b/i, resolve: () => getRelativeDate(0) },
-        { regex: /\bby\s+(end of (?:the )?week)\b/i, resolve: () => getEndOfWeek() },
-        { regex: /\bby\s+(end of (?:the )?month)\b/i, resolve: () => getEndOfMonth() },
-        { regex: /\bby\s+(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i, resolve: (m) => getNextWeekday(m[1]) },
-        { regex: /\bby\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/i, resolve: (m) => parseDate(m[1]) },
-        { regex: /\b(tomorrow)\b/i, resolve: () => getRelativeDate(1) },
-        { regex: /\b(ASAP)\b/i, resolve: () => null },
-    ];
-
-    // Priority keywords
-    function detectPriority(text) {
-        const lower = text.toLowerCase();
-        if (/\b(asap|urgent|urgently|immediately|critical|right away)\b/.test(lower)) return 'HIGH';
-        if (/\b(when you get a chance|whenever|no rush|low priority|if you can)\b/.test(lower)) return 'LOW';
-        return 'MEDIUM';
-    }
-
-    // Date helpers
-    function getRelativeDate(daysFromNow) {
-        const d = new Date();
-        d.setDate(d.getDate() + daysFromNow);
-        return d.toISOString().split('T')[0];
-    }
-
-    function getEndOfWeek() {
-        const d = new Date();
-        const day = d.getDay();
-        const diff = day === 0 ? 0 : 7 - day; // Sunday = end of week
-        d.setDate(d.getDate() + diff);
-        return d.toISOString().split('T')[0];
-    }
-
-    function getEndOfMonth() {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 1, 0); // last day of current month
-        return d.toISOString().split('T')[0];
-    }
-
-    function getNextWeekday(phrase) {
-        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const target = days.findIndex((d) => phrase.toLowerCase().includes(d));
-        if (target === -1) return null;
-        const d = new Date();
-        const current = d.getDay();
-        let diff = target - current;
-        if (diff <= 0) diff += 7;
-        d.setDate(d.getDate() + diff);
-        return d.toISOString().split('T')[0];
-    }
-
-    function parseDate(str) {
-        const d = new Date(str);
-        return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
-    }
 
     function formatTimestamp(ms, startMs) {
         const elapsed = Math.max(0, Math.floor((ms - startMs) / 1000));
-        const h = Math.floor(elapsed / 3600);
-        const m = Math.floor((elapsed % 3600) / 60);
+        const m = Math.floor(elapsed / 60);
         const s = elapsed % 60;
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
     for (const segment of segments) {
         const { speaker, timestamp, text } = segment;
         if (!text) continue;
-
         for (const pattern of patterns) {
-            let match;
             const re = new RegExp(pattern.regex.source, pattern.regex.flags);
+            let match;
             while ((match = re.exec(text)) !== null) {
                 const taskText = (match[pattern.textGroup || 1] || '').trim();
-                if (taskText.length < 5) continue; // skip very short matches
-
-                // Detect deadline
-                let deadline = null;
-                let deadlineRaw = null;
-                for (const dp of deadlinePatterns) {
-                    const dm = dp.regex.exec(text);
-                    if (dm) {
-                        deadlineRaw = dm[1];
-                        deadline = dp.resolve(dm);
-                        break;
-                    }
-                }
-
-                const priority = detectPriority(text);
-
+                if (taskText.length < 5) continue;
                 tasks.push({
                     id: uuidv4(),
-                    text: taskText.charAt(0).toUpperCase() + taskText.slice(1),
+                    text: taskText,
                     assignedTo: pattern.getAssignedTo(match, speaker),
-                    assignedBy: pattern.getAssignedBy(match, speaker),
-                    deadline,
-                    deadlineRaw,
-                    priority,
+                    assignedBy: speaker,
+                    deadline: null,
+                    priority: 'MEDIUM',
                     mentionedAt: formatTimestamp(timestamp, callStartTime),
-                    status: 'pending',
+                    status: 'pending'
                 });
             }
         }
     }
-
     return tasks;
 }
 
-module.exports = { extractTasks };
+async function extractTasksFromText(text) {
+    if (!text || typeof text !== 'string') return [];
+    const segments = [{ speaker: 'AI Analysis', timestamp: Date.now(), text: text.trim() }];
+    return await extractTasks(segments, Date.now());
+}
+
+module.exports = { extractTasks, extractTasksFromText };
